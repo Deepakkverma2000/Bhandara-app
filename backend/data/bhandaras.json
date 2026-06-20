@@ -1,0 +1,80 @@
+[
+  {
+    "id": "b001-shri-ram-bhandara",
+    "bhandaraName": "Shri Ram Ji Ka Bhandara",
+    "publisherName": "Ram Kumar Sharma",
+    "street": "Main Road, Near Hanuman Mandir",
+    "village": "Karol Bagh",
+    "pinCode": "110005",
+    "date": "2026-06-22T10:00:00.000Z",
+    "latitude": 28.6512,
+    "longitude": 77.1909,
+    "imagePath": null,
+    "createdAt": "2026-06-20T10:00:00.000Z"
+  },
+  {
+    "id": "b002-mata-ki-bhandara",
+    "bhandaraName": "Mata Ki Bhandara",
+    "publisherName": "Rajesh Kumar",
+    "street": "Gali No. 5, Sant Nagar",
+    "village": "Lajpat Nagar",
+    "pinCode": "110024",
+    "date": "2026-06-23T11:30:00.000Z",
+    "latitude": 28.5677,
+    "longitude": 77.2431,
+    "imagePath": null,
+    "createdAt": "2026-06-20T11:00:00.000Z"
+  },
+  {
+    "id": "b003-gurudwara-langar",
+    "bhandaraName": "Gurudwara Sahib Langar Sewa",
+    "publisherName": "Gurudwara Committee",
+    "street": "Ring Road, Block C",
+    "village": "Connaught Place",
+    "pinCode": "110001",
+    "date": "2026-06-21T09:00:00.000Z",
+    "latitude": 28.6315,
+    "longitude": 77.2167,
+    "imagePath": null,
+    "createdAt": "2026-06-20T12:00:00.000Z"
+  },
+  {
+    "id": "b004-shiv-bhandara",
+    "bhandaraName": "Shiv Ji Bhandara",
+    "publisherName": "Mohan Lal",
+    "street": "Sector 18, Market Road",
+    "village": "Noida",
+    "pinCode": "201301",
+    "date": "2026-06-25T08:00:00.000Z",
+    "latitude": 28.5355,
+    "longitude": 77.3910,
+    "imagePath": null,
+    "createdAt": "2026-06-20T13:00:00.000Z"
+  },
+  {
+    "id": "b005-hanuman-bhandara",
+    "bhandaraName": "Hanuman Jayanti Bhandara",
+    "publisherName": "Suresh Yadav",
+    "street": "MG Road, Opposite Metro Station",
+    "village": "Gurgaon",
+    "pinCode": "122001",
+    "date": "2026-06-24T12:00:00.000Z",
+    "latitude": 28.4595,
+    "longitude": 77.0266,
+    "imagePath": null,
+    "createdAt": "2026-06-20T14:00:00.000Z"
+  },
+  {
+    "id": "b006-community-bhandara",
+    "bhandaraName": "Community Bhandara",
+    "publisherName": "Ramesh Sharma",
+    "street": "Patel Chowk, Ward 12",
+    "village": "Faridabad",
+    "pinCode": "121001",
+    "date": "2026-06-26T10:30:00.000Z",
+    "latitude": 28.4089,
+    "longitude": 77.3178,
+    "imagePath": null,
+    "createdAt": "2026-06-20T15:00:00.000Z"
+  }
+]

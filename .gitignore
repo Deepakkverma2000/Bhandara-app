@@ -1,0 +1,21 @@
+# Secrets — never commit
+.env
+**/.env
+**/firebase-service-account*.json
+
+# Backend
+backend/node_modules/
+backend/uploads/
+
+# Flutter / Dart
+**/.dart_tool/
+**/build/
+**/.flutter-plugins-dependencies
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
