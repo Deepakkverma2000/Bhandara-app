@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/bhandara.dart';
 import '../utils/map_utils.dart';
 import '../widgets/map_widget.dart';
+import '../widgets/report_bhandara_dialog.dart';
 
 class BhandaraDetailScreen extends StatelessWidget {
   final Bhandara bhandara;
@@ -17,6 +18,28 @@ class BhandaraDetailScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bhandara Details'),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded),
+            onSelected: (value) async {
+              if (value == 'report') {
+                await ReportBhandaraDialog.show(context, bhandara);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'report',
+                child: Row(
+                  children: [
+                    Icon(Icons.flag_outlined, color: Colors.red),
+                    SizedBox(width: 10),
+                    Text('Report'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: ListView(
         children: [

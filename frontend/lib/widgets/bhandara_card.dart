@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 
 import '../models/bhandara.dart';
 import '../theme/app_colors.dart';
+import 'report_bhandara_dialog.dart';
+import 'bhandara_more_menu.dart';
 
 class BhandaraCard extends StatelessWidget {
   final Bhandara bhandara;
@@ -33,103 +35,114 @@ class BhandaraCard extends StatelessWidget {
       ),
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (bhandara.imageUrl != null)
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: Image.network(
-                    bhandara.imageUrl!,
-                    height: 160,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 160,
-                      color: AppColors.iconBg,
+        child: Stack(
+          children: [
+            InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (bhandara.imageUrl != null)
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                      child: Image.network(
+                        bhandara.imageUrl!,
+                        height: 160,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 160,
+                          color: AppColors.iconBg,
+                          child: const Icon(
+                            Icons.image_not_supported,
+                            size: 48,
+                            color: AppColors.primaryOrange,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      height: 100,
+                      width: double.infinity,
+                      decoration: const BoxDecoration(
+                        color: AppColors.iconBg,
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                      ),
                       child: const Icon(
-                        Icons.image_not_supported,
+                        Icons.soup_kitchen_rounded,
                         size: 48,
                         color: AppColors.primaryOrange,
                       ),
                     ),
-                  ),
-                )
-              else
-                Container(
-                  height: 100,
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: AppColors.iconBg,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                  ),
-                  child: const Icon(
-                    Icons.soup_kitchen_rounded,
-                    size: 48,
-                    color: AppColors.primaryOrange,
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            bhandara.bhandaraName,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textDark,
-                            ),
-                          ),
-                        ),
-                        if (bhandara.distanceKm != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.iconBg,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '${bhandara.distanceKm!.toStringAsFixed(1)} km',
-                              style: const TextStyle(
-                                color: AppColors.deepOrange,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                bhandara.bhandaraName,
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textDark,
+                                ),
                               ),
                             ),
-                          ),
+                            if (bhandara.distanceKm != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.iconBg,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '${bhandara.distanceKm!.toStringAsFixed(1)} km',
+                                  style: const TextStyle(
+                                    color: AppColors.deepOrange,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        _InfoRow(
+                          icon: Icons.calendar_today_rounded,
+                          text: dateFormat.format(bhandara.date),
+                        ),
+                        const SizedBox(height: 6),
+                        _InfoRow(
+                          icon: Icons.person_outline_rounded,
+                          text: 'By ${bhandara.publisherName}',
+                        ),
+                        const SizedBox(height: 6),
+                        _InfoRow(
+                          icon: Icons.location_on_rounded,
+                          text: bhandara.fullAddress,
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    _InfoRow(
-                      icon: Icons.calendar_today_rounded,
-                      text: dateFormat.format(bhandara.date),
-                    ),
-                    const SizedBox(height: 6),
-                    _InfoRow(
-                      icon: Icons.person_outline_rounded,
-                      text: 'By ${bhandara.publisherName}',
-                    ),
-                    const SizedBox(height: 6),
-                    _InfoRow(
-                      icon: Icons.location_on_rounded,
-                      text: bhandara.fullAddress,
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: BhandaraMoreMenu(
+                onReport: () => ReportBhandaraDialog.show(context, bhandara),
+              ),
+            ),
+          ],
         ),
       ),
     );

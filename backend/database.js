@@ -19,6 +19,7 @@ function mapFromDb(row) {
     longitude: row.longitude,
     imageUrl: row.image_url,
     imagePath: null,
+    postedBy: row.posted_by || null,
     createdAt: row.created_at,
   };
 }
@@ -35,6 +36,7 @@ function mapToDb(data) {
     latitude: data.latitude,
     longitude: data.longitude,
     image_url: data.imageUrl || null,
+    posted_by: data.postedBy || null,
     created_at: data.createdAt,
   };
 }
@@ -166,14 +168,71 @@ async function createBhandara(data, imageFile = null) {
   }
 
   const bhandaras = readAllLocal();
-  bhandaras.push(data);
+  bhandaras.push({
+    ...data,
+    postedBy: data.postedBy || null,
+  });
   writeAllLocal(bhandaras);
   return data;
+}
+
+async function getBhandarasByUserId(userId) {
+  await deleteExpiredBhandaras();
+
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabase();
+    const byId = new Map();
+
+    const { data: linked, error } = await supabase
+      .from('bhandaras')
+      .select('*')
+      .eq('posted_by', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    for (const row of linked || []) {
+      byId.set(row.id, mapFromDb(row));
+    }
+
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('full_name')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userError) throw new Error(userError.message);
+
+    const fullName = (user?.full_name || '').trim().toLowerCase();
+    if (fullName) {
+      const { data: legacy, error: legacyError } = await supabase
+        .from('bhandaras')
+        .select('*')
+        .is('posted_by', null);
+
+      if (legacyError) throw new Error(legacyError.message);
+
+      for (const row of legacy || []) {
+        if ((row.publisher_name || '').trim().toLowerCase() === fullName) {
+          byId.set(row.id, mapFromDb(row));
+        }
+      }
+    }
+
+    return [...byId.values()].sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+    );
+  }
+
+  return readAllLocal()
+    .filter((b) => b.postedBy === userId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
 module.exports = {
   getAllBhandaras,
   getBhandaraById,
+  getBhandarasByUserId,
   createBhandara,
   deleteExpiredBhandaras,
   isSupabaseConfigured,

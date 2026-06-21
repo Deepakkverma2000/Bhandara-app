@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../models/place_search_result.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../services/location_service.dart';
 import '../widgets/map_widget.dart';
 
@@ -39,6 +40,10 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
   void initState() {
     super.initState();
     _initMapLocation();
+    final displayName = AuthService.instance.displayName;
+    if (displayName != null && displayName.isNotEmpty) {
+      _publisherNameController.text = displayName;
+    }
   }
 
   Future<void> _initMapLocation() async {

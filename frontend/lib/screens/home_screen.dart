@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../models/bhandara.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/deity_carousel.dart';
 import '../widgets/live_activity_card.dart';
 import '../widgets/services_grid.dart';
 import 'notifications_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final VoidCallback onFindBhandara;
@@ -141,18 +143,7 @@ class _HeroHeader extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.gold, width: 2),
-                    image: const DecorationImage(
-                      image: NetworkImage('https://i.pravatar.cc/150?img=47'),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
+                _UserAvatar(),
                 const Spacer(),
                 _NotificationBellButton(
                   unreadCount: unreadCount,
@@ -206,6 +197,54 @@ class _HeroHeader extends StatelessWidget {
             const SizedBox(height: 18),
             const DeityCarousel(),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UserAvatar extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final avatarUrl = AuthService.instance.avatarUrl;
+    final name = AuthService.instance.displayName ?? 'User';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+          );
+        },
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.gold, width: 2),
+            color: AppColors.maroon.withValues(alpha: 0.35),
+            image: avatarUrl != null
+                ? DecorationImage(
+                    image: NetworkImage(avatarUrl),
+                    fit: BoxFit.cover,
+                  )
+                : null,
+          ),
+          child: avatarUrl == null
+              ? Center(
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                )
+              : null,
         ),
       ),
     );

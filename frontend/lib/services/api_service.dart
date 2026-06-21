@@ -5,11 +5,25 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 import '../config/api_config.dart';
+import '../models/admin_user_reports.dart';
 import '../models/app_notification.dart';
 import '../models/bhandara.dart';
-import 'device_id_service.dart';
+import '../models/bhandara_report.dart';
+import '../services/auth_service.dart';
+import '../services/device_id_service.dart';
 
 class ApiService {
+  Map<String, String> _authHeaders() {
+    final token = AuthService.instance.session?.accessToken;
+    if (token == null) {
+      throw Exception('Login required');
+    }
+
+    return {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    };
+  }
   Future<List<Bhandara>> fetchBhandaras({
     double? latitude,
     double? longitude,
@@ -41,7 +55,13 @@ class ApiService {
     required double longitude,
     File? image,
   }) async {
+    final token = AuthService.instance.session?.accessToken;
+    if (token == null) {
+      throw Exception('Login required to post a Bhandara');
+    }
+
     final request = http.MultipartRequest('POST', Uri.parse(ApiConfig.bhandarasUrl));
+    request.headers['Authorization'] = 'Bearer $token';
 
     request.fields['bhandaraName'] = bhandaraName;
     request.fields['publisherName'] = publisherName;
@@ -171,6 +191,121 @@ class ApiService {
     if (response.statusCode != 200) {
       throw Exception('Failed to mark all notifications read');
     }
+  }
+
+  Future<void> reportBhandara({
+    required String bhandaraId,
+    required String reason,
+  }) async {
+    final response = await http.post(
+      Uri.parse(ApiConfig.reportsUrl),
+      headers: _authHeaders(),
+      body: jsonEncode({
+        'bhandaraId': bhandaraId,
+        'reason': reason,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      return;
+    }
+
+    String message = 'Failed to submit report (${response.statusCode})';
+    try {
+      final error = jsonDecode(response.body) as Map<String, dynamic>;
+      message = error['message']?.toString() ?? message;
+    } catch (_) {
+      if (response.body.isNotEmpty && !response.body.startsWith('<')) {
+        message = response.body;
+      }
+    }
+    throw Exception(message);
+  }
+
+  Future<List<Bhandara>> fetchMyBhandaras() async {
+    final response = await http.get(
+      Uri.parse(ApiConfig.myBhandarasUrl),
+      headers: _authHeaders(),
+    );
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = body['data'] as List<dynamic>;
+      return data.map((e) => Bhandara.fromJson(e as Map<String, dynamic>)).toList();
+    }
+
+    String message = 'Failed to load your Bhandaras (${response.statusCode})';
+    try {
+      final error = jsonDecode(response.body) as Map<String, dynamic>;
+      message = error['message']?.toString() ?? message;
+    } catch (_) {}
+    throw Exception(message);
+  }
+
+  Future<List<AdminUserReports>> fetchAdminReportsByUser() async {
+    final response = await http.get(
+      Uri.parse(ApiConfig.adminReportsByUserUrl),
+      headers: _authHeaders(),
+    );
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = body['data'] as List<dynamic>;
+      return data
+          .map((e) => AdminUserReports.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+
+    String message = 'Failed to load user reports (${response.statusCode})';
+    try {
+      final error = jsonDecode(response.body) as Map<String, dynamic>;
+      message = error['message']?.toString() ?? message;
+    } catch (_) {}
+    throw Exception(message);
+  }
+
+  Future<void> setUserBlocked({
+    required String userId,
+    required bool blocked,
+  }) async {
+    final response = await http.patch(
+      Uri.parse(ApiConfig.adminUserBlockUrl(userId)),
+      headers: _authHeaders(),
+      body: jsonEncode({'blocked': blocked}),
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    String message = 'Failed to update user (${response.statusCode})';
+    try {
+      final error = jsonDecode(response.body) as Map<String, dynamic>;
+      message = error['message']?.toString() ?? message;
+    } catch (_) {}
+    throw Exception(message);
+  }
+
+  Future<List<BhandaraReport>> fetchAdminReports() async {
+    final response = await http.get(
+      Uri.parse(ApiConfig.adminReportsUrl),
+      headers: _authHeaders(),
+    );
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = body['data'] as List<dynamic>;
+      return data
+          .map((e) => BhandaraReport.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+
+    String message = 'Failed to load reports (${response.statusCode})';
+    try {
+      final error = jsonDecode(response.body) as Map<String, dynamic>;
+      message = error['message']?.toString() ?? message;
+    } catch (_) {}
+    throw Exception(message);
   }
 
   String _imageContentType(String filePath) {

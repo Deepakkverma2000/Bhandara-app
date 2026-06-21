@@ -9,6 +9,7 @@ class Bhandara {
   final double latitude;
   final double longitude;
   final String? imageUrl;
+  final String? postedBy;
   final DateTime createdAt;
   final double? distanceKm;
 
@@ -23,6 +24,7 @@ class Bhandara {
     required this.latitude,
     required this.longitude,
     this.imageUrl,
+    this.postedBy,
     required this.createdAt,
     this.distanceKm,
   });
@@ -41,6 +43,7 @@ class Bhandara {
       latitude: (json['latitude'] as num).toDouble(),
       longitude: (json['longitude'] as num).toDouble(),
       imageUrl: json['imageUrl'] as String?,
+      postedBy: json['postedBy'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
       distanceKm: json['distanceKm'] != null
           ? (json['distanceKm'] as num).toDouble()

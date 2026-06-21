@@ -9,6 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 const {
   getAllBhandaras,
   getBhandaraById,
+  getBhandarasByUserId,
   createBhandara,
   deleteExpiredBhandaras,
   isSupabaseConfigured,
@@ -21,6 +22,8 @@ const {
   markAllRead,
   notifyNewBhandara,
 } = require('./notifications');
+const { verifyAuthToken, requireActiveUser, requireAdmin } = require('./auth');
+const { submitBhandaraReport, getUserBlockStatus, getAllReportsForAdmin, getReportsGroupedByUserForAdmin, setUserBlocked } = require('./reports');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -115,6 +118,7 @@ function formatBhandara(row, req) {
     latitude: row.latitude,
     longitude: row.longitude,
     imageUrl,
+    postedBy: row.postedBy || row.posted_by || null,
     createdAt: row.createdAt || row.created_at,
   };
 }
@@ -178,7 +182,7 @@ app.get('/api/bhandaras/:id', async (req, res) => {
   }
 });
 
-app.post('/api/bhandaras', upload.single('image'), async (req, res) => {
+app.post('/api/bhandaras', verifyAuthToken, requireActiveUser, upload.single('image'), async (req, res) => {
   try {
     console.log('POST body fields:', req.body);
 
@@ -233,6 +237,7 @@ app.post('/api/bhandaras', upload.single('image'), async (req, res) => {
       latitude: lat,
       longitude: lng,
       imageUrl: null,
+      postedBy: req.authUser.id,
       createdAt: new Date().toISOString(),
     };
 
@@ -248,6 +253,113 @@ app.post('/api/bhandaras', upload.single('image'), async (req, res) => {
   } catch (error) {
     console.error('POST /api/bhandaras error:', error.message);
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/reports', verifyAuthToken, requireActiveUser, async (req, res) => {
+  try {
+    const { bhandaraId, reason } = req.body;
+
+    if (!bhandaraId) {
+      return res.status(400).json({ success: false, message: 'bhandaraId is required' });
+    }
+
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ success: false, message: 'Report reason is required' });
+    }
+
+    const result = await submitBhandaraReport({
+      bhandaraId: String(bhandaraId),
+      reporterId: req.authUser.id,
+      reason: String(reason),
+    });
+
+    res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    console.error('POST /api/reports error:', error.message);
+    const status = error.message.includes('already reported') ? 409 : 400;
+    res.status(status).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/bhandaras/:id/report', verifyAuthToken, requireActiveUser, async (req, res) => {
+  try {
+    const { reason } = req.body;
+
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ success: false, message: 'Report reason is required' });
+    }
+
+    const result = await submitBhandaraReport({
+      bhandaraId: req.params.id,
+      reporterId: req.authUser.id,
+      reason: String(reason),
+    });
+
+    res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    console.error('POST /api/bhandaras/:id/report error:', error.message);
+    const status = error.message.includes('already reported') ? 409 : 400;
+    res.status(status).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/users/me/status', verifyAuthToken, async (req, res) => {
+  try {
+    const status = await getUserBlockStatus(req.authUser.id);
+    res.json({ success: true, data: status });
+  } catch (error) {
+    console.error('GET /api/users/me/status error:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/users/me/bhandaras', verifyAuthToken, requireActiveUser, async (req, res) => {
+  try {
+    const bhandaras = await getBhandarasByUserId(req.authUser.id);
+    res.json({
+      success: true,
+      data: bhandaras.map((row) => formatBhandara(row, req)),
+      total: bhandaras.length,
+    });
+  } catch (error) {
+    console.error('GET /api/users/me/bhandaras error:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/admin/reports', verifyAuthToken, requireAdmin, async (req, res) => {
+  try {
+    const reports = await getAllReportsForAdmin();
+    res.json({ success: true, data: reports, total: reports.length });
+  } catch (error) {
+    console.error('GET /api/admin/reports error:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/admin/reports/by-user', verifyAuthToken, requireAdmin, async (req, res) => {
+  try {
+    const groups = await getReportsGroupedByUserForAdmin();
+    res.json({ success: true, data: groups, total: groups.length });
+  } catch (error) {
+    console.error('GET /api/admin/reports/by-user error:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.patch('/api/admin/users/:id/block', verifyAuthToken, requireAdmin, async (req, res) => {
+  try {
+    const blocked = req.body?.blocked;
+    if (typeof blocked !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'blocked (boolean) is required' });
+    }
+
+    const result = await setUserBlocked(req.params.id, blocked);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('PATCH /api/admin/users/:id/block error:', error.message);
+    res.status(400).json({ success: false, message: error.message });
   }
 });
 

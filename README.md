@@ -63,13 +63,22 @@ flutter run
 
 ### API URL Configuration
 
-Edit `frontend/lib/config/api_config.dart`:
+Edit `frontend/lib/config/api_config.dart` and set `pcLocalIp` to your PC's Wi-Fi IP:
 
-- **Android Emulator**: `http://10.0.2.2:3000` (default)
-- **Physical Device**: Use your PC's local IP, e.g. `http://192.168.1.5:3000`
-- **iOS Simulator**: `http://localhost:3000`
+- **Android Emulator**: use `10.0.2.2`
+- **Physical Device**: e.g. `192.168.1.5` (same Wi-Fi as your phone)
+- **iOS Simulator**: `localhost` is used automatically on non-Android
 
-Make sure your phone and PC are on the same Wi-Fi when testing on a physical device.
+See `frontend/lib/config/api_config.example.dart` for a template.
+
+### Secrets (do not commit)
+
+| File | Purpose |
+|------|---------|
+| `backend/.env` | Supabase service role key — copy from `backend/.env.example` |
+| `frontend/lib/config/supabase_config.dart` | Supabase URL, anon key, Google Web Client ID — copy from `supabase_config.example.dart` |
+
+These files are **gitignored**. Never push real keys to GitHub.
 
 ---
 
