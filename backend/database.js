@@ -229,11 +229,92 @@ async function getBhandarasByUserId(userId) {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
+async function userCanEditBhandara(bhandara, userId) {
+  if (!bhandara) return false;
+  if (bhandara.postedBy === userId) return true;
+
+  if (bhandara.postedBy) return false;
+
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabase();
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('full_name')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+
+    const fullName = (user?.full_name || '').trim().toLowerCase();
+    const publisherName = (bhandara.publisherName || '').trim().toLowerCase();
+    return fullName.length > 0 && fullName === publisherName;
+  }
+
+  return bhandara.postedBy === userId;
+}
+
+async function updateBhandara(id, userId, data, imageFile = null) {
+  const existing = await getBhandaraById(id);
+  if (!existing) {
+    throw new Error('Bhandara not found');
+  }
+
+  const canEdit = await userCanEditBhandara(existing, userId);
+  if (!canEdit) {
+    throw new Error('You can only edit your own Bhandara listings');
+  }
+
+  const updated = {
+    ...existing,
+    ...data,
+    id: existing.id,
+    createdAt: existing.createdAt,
+    postedBy: existing.postedBy || userId,
+    imageUrl: data.imageUrl !== undefined ? data.imageUrl : existing.imageUrl,
+  };
+
+  if (isSupabaseConfigured()) {
+    if (imageFile) {
+      updated.imageUrl = await uploadImageToSupabase(imageFile);
+    }
+
+    const supabase = getSupabase();
+    const { data: saved, error } = await supabase
+      .from('bhandaras')
+      .update(mapToDb(updated))
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) throw new Error(error.message);
+    return mapFromDb(saved);
+  }
+
+  if (imageFile) {
+    const uploadsDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+    const ext = path.extname(imageFile.originalname) || '.jpg';
+    const fileName = `${uuidv4()}${ext}`;
+    fs.writeFileSync(path.join(uploadsDir, fileName), imageFile.buffer);
+    updated.imagePath = fileName;
+    updated.imageUrl = null;
+  }
+
+  const bhandaras = readAllLocal();
+  const index = bhandaras.findIndex((b) => b.id === id);
+  if (index === -1) throw new Error('Bhandara not found');
+
+  bhandaras[index] = { ...bhandaras[index], ...updated };
+  writeAllLocal(bhandaras);
+  return bhandaras[index];
+}
+
 module.exports = {
   getAllBhandaras,
   getBhandaraById,
   getBhandarasByUserId,
   createBhandara,
+  updateBhandara,
   deleteExpiredBhandaras,
   isSupabaseConfigured,
 };

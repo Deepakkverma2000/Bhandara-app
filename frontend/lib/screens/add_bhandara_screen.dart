@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../models/bhandara.dart';
 import '../models/place_search_result.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -12,7 +13,11 @@ import '../services/location_service.dart';
 import '../widgets/map_widget.dart';
 
 class AddBhandaraScreen extends StatefulWidget {
-  const AddBhandaraScreen({super.key});
+  final Bhandara? existingBhandara;
+
+  const AddBhandaraScreen({super.key, this.existingBhandara});
+
+  bool get isEditing => existingBhandara != null;
 
   @override
   State<AddBhandaraScreen> createState() => _AddBhandaraScreenState();
@@ -32,6 +37,7 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
 
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
   File? _invitationImage;
+  String? _existingImageUrl;
   LatLng? _mapPosition;
   bool _isSubmitting = false;
   bool _isLoadingLocation = true;
@@ -39,10 +45,23 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
   @override
   void initState() {
     super.initState();
-    _initMapLocation();
-    final displayName = AuthService.instance.displayName;
-    if (displayName != null && displayName.isNotEmpty) {
-      _publisherNameController.text = displayName;
+    final existing = widget.existingBhandara;
+    if (existing != null) {
+      _bhandaraNameController.text = existing.bhandaraName;
+      _publisherNameController.text = existing.publisherName;
+      _streetController.text = existing.street;
+      _villageController.text = existing.village;
+      _pinCodeController.text = existing.pinCode;
+      _selectedDate = existing.date;
+      _existingImageUrl = existing.imageUrl;
+      _mapPosition = LatLng(existing.latitude, existing.longitude);
+      _isLoadingLocation = false;
+    } else {
+      _initMapLocation();
+      final displayName = AuthService.instance.displayName;
+      if (displayName != null && displayName.isNotEmpty) {
+        _publisherNameController.text = displayName;
+      }
     }
   }
 
@@ -79,7 +98,10 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
       imageQuality: 85,
     );
     if (picked != null) {
-      setState(() => _invitationImage = File(picked.path));
+      setState(() {
+        _invitationImage = File(picked.path);
+        _existingImageUrl = null;
+      });
     }
   }
 
@@ -123,28 +145,49 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      await _apiService.createBhandara(
-        bhandaraName: _bhandaraNameController.text.trim(),
-        publisherName: _publisherNameController.text.trim(),
-        street: _streetController.text.trim(),
-        village: _villageController.text.trim(),
-        pinCode: _pinCodeController.text.trim(),
-        date: _selectedDate,
-        latitude: _mapPosition!.latitude,
-        longitude: _mapPosition!.longitude,
-        image: _invitationImage,
-      );
+      if (widget.isEditing) {
+        await _apiService.updateBhandara(
+          id: widget.existingBhandara!.id,
+          bhandaraName: _bhandaraNameController.text.trim(),
+          publisherName: _publisherNameController.text.trim(),
+          street: _streetController.text.trim(),
+          village: _villageController.text.trim(),
+          pinCode: _pinCodeController.text.trim(),
+          date: _selectedDate,
+          latitude: _mapPosition!.latitude,
+          longitude: _mapPosition!.longitude,
+          image: _invitationImage,
+        );
+      } else {
+        await _apiService.createBhandara(
+          bhandaraName: _bhandaraNameController.text.trim(),
+          publisherName: _publisherNameController.text.trim(),
+          street: _streetController.text.trim(),
+          village: _villageController.text.trim(),
+          pinCode: _pinCodeController.text.trim(),
+          date: _selectedDate,
+          latitude: _mapPosition!.latitude,
+          longitude: _mapPosition!.longitude,
+          image: _invitationImage,
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bhandara added successfully!')),
+          SnackBar(
+            content: Text(
+              widget.isEditing
+                  ? 'Bhandara updated successfully!'
+                  : 'Bhandara added successfully!',
+            ),
+          ),
         );
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
         );
       }
     } finally {
@@ -169,7 +212,7 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Bhandara'),
+        title: Text(widget.isEditing ? 'Edit Bhandara' : 'Add Bhandara'),
       ),
       body: Form(
         key: _formKey,
@@ -267,18 +310,23 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
                         borderRadius: BorderRadius.circular(12),
                         child: Image.file(_invitationImage!, fit: BoxFit.cover),
                       )
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_photo_alternate,
-                              size: 48, color: Colors.grey.shade500),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Tap to upload invitation image',
-                            style: TextStyle(color: Colors.grey.shade600),
+                    : _existingImageUrl != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(_existingImageUrl!, fit: BoxFit.cover),
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_photo_alternate,
+                                  size: 48, color: Colors.grey.shade500),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Tap to upload invitation image',
+                                style: TextStyle(color: Colors.grey.shade600),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
               ),
             ),
             const SizedBox(height: 20),
@@ -287,7 +335,7 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
             else if (_mapPosition != null)
               MapPickerWidget(
                 initialPosition: _mapPosition!,
-                onPositionChanged: (pos) => _mapPosition = pos,
+                onPositionChanged: (pos) => setState(() => _mapPosition = pos),
                 onPlaceSelected: _onPlaceSelected,
               ),
           ],
@@ -312,7 +360,10 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text('Save Bhandara', style: TextStyle(fontSize: 16)),
+                  : Text(
+                      widget.isEditing ? 'Save Changes' : 'Save Bhandara',
+                      style: const TextStyle(fontSize: 16),
+                    ),
             ),
           ),
         ),

@@ -6,6 +6,7 @@ import '../models/bhandara.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
+import 'add_bhandara_screen.dart';
 import 'bhandara_detail_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -165,6 +166,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       MaterialPageRoute(builder: (_) => BhandaraDetailScreen(bhandara: bhandara)),
     );
+  }
+
+  Future<void> _editBhandara(Bhandara bhandara) async {
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddBhandaraScreen(existingBhandara: bhandara),
+      ),
+    );
+
+    if (updated == true) {
+      await _loadProfile();
+    }
   }
 
   @override
@@ -466,6 +480,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                 ],
                               ),
+                            ),
+                            IconButton(
+                              tooltip: 'Edit',
+                              onPressed: () => _editBhandara(bhandara),
+                              icon: const Icon(Icons.edit_outlined, color: AppColors.maroon),
                             ),
                             const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
                           ],

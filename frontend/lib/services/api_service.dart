@@ -105,6 +105,65 @@ class ApiService {
     throw Exception(message);
   }
 
+  Future<Bhandara> updateBhandara({
+    required String id,
+    required String bhandaraName,
+    required String publisherName,
+    required String street,
+    required String village,
+    required String pinCode,
+    required DateTime date,
+    required double latitude,
+    required double longitude,
+    File? image,
+  }) async {
+    final token = AuthService.instance.session?.accessToken;
+    if (token == null) {
+      throw Exception('Login required to edit a Bhandara');
+    }
+
+    final request = http.MultipartRequest('PUT', Uri.parse('${ApiConfig.bhandarasUrl}/$id'));
+    request.headers['Authorization'] = 'Bearer $token';
+
+    request.fields['bhandaraName'] = bhandaraName;
+    request.fields['publisherName'] = publisherName;
+    request.fields['street'] = street;
+    request.fields['village'] = village;
+    request.fields['pinCode'] = pinCode;
+    request.fields['date'] = date.toIso8601String();
+    request.fields['latitude'] = latitude.toString();
+    request.fields['longitude'] = longitude.toString();
+
+    if (image != null) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'image',
+          image.path,
+          contentType: MediaType.parse(_imageContentType(image.path)),
+        ),
+      );
+    }
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return Bhandara.fromJson(body['data'] as Map<String, dynamic>);
+    }
+
+    String message = 'Failed to update Bhandara (${response.statusCode})';
+    try {
+      final error = jsonDecode(response.body) as Map<String, dynamic>;
+      message = error['message']?.toString() ?? message;
+    } catch (_) {
+      if (response.body.isNotEmpty) {
+        message = '$message: ${response.body}';
+      }
+    }
+    throw Exception(message);
+  }
+
   Future<bool> checkHealth() async {
     try {
       final response = await http.get(Uri.parse(ApiConfig.healthUrl));

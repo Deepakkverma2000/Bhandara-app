@@ -11,6 +11,7 @@ const {
   getBhandaraById,
   getBhandarasByUserId,
   createBhandara,
+  updateBhandara,
   deleteExpiredBhandaras,
   isSupabaseConfigured,
 } = require('./database');
@@ -182,52 +183,46 @@ app.get('/api/bhandaras/:id', async (req, res) => {
   }
 });
 
-app.post('/api/bhandaras', verifyAuthToken, requireActiveUser, upload.single('image'), async (req, res) => {
-  try {
-    console.log('POST body fields:', req.body);
+function parseBhandaraFields(body) {
+  const {
+    bhandaraName,
+    publisherName,
+    name,
+    street,
+    village,
+    pinCode,
+    date,
+    latitude,
+    longitude,
+  } = body;
 
-    const {
-      bhandaraName,
-      publisherName,
-      name,
-      street,
-      village,
-      pinCode,
-      date,
-      latitude,
-      longitude,
-    } = req.body;
+  const finalBhandaraName = (bhandaraName || name || '').trim();
+  const finalPublisherName = (publisherName || '').trim();
 
-    const finalBhandaraName = (bhandaraName || name || '').trim();
-    const finalPublisherName = (publisherName || '').trim();
+  if (
+    !finalBhandaraName ||
+    !finalPublisherName ||
+    !street ||
+    !village ||
+    !pinCode ||
+    !date ||
+    latitude === undefined ||
+    latitude === '' ||
+    longitude === undefined ||
+    longitude === ''
+  ) {
+    return { error: 'All fields are required: bhandaraName, publisherName, street, village, pinCode, date, latitude, longitude' };
+  }
 
-    if (
-      !finalBhandaraName ||
-      !finalPublisherName ||
-      !street ||
-      !village ||
-      !pinCode ||
-      !date ||
-      !latitude ||
-      !longitude
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          'All fields are required: bhandaraName, publisherName, street, village, pinCode, date, latitude, longitude',
-        received: req.body,
-      });
-    }
+  const lat = parseFloat(latitude);
+  const lng = parseFloat(longitude);
 
-    const lat = parseFloat(latitude);
-    const lng = parseFloat(longitude);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+    return { error: 'Invalid latitude or longitude' };
+  }
 
-    if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      return res.status(400).json({ success: false, message: 'Invalid latitude or longitude' });
-    }
-
-    const data = {
-      id: uuidv4(),
+  return {
+    data: {
       bhandaraName: finalBhandaraName,
       publisherName: finalPublisherName,
       street: street.trim(),
@@ -236,6 +231,26 @@ app.post('/api/bhandaras', verifyAuthToken, requireActiveUser, upload.single('im
       date,
       latitude: lat,
       longitude: lng,
+    },
+  };
+}
+
+app.post('/api/bhandaras', verifyAuthToken, requireActiveUser, upload.single('image'), async (req, res) => {
+  try {
+    console.log('POST body fields:', req.body);
+
+    const parsed = parseBhandaraFields(req.body);
+    if (parsed.error) {
+      return res.status(400).json({
+        success: false,
+        message: parsed.error,
+        received: req.body,
+      });
+    }
+
+    const data = {
+      id: uuidv4(),
+      ...parsed.data,
       imageUrl: null,
       postedBy: req.authUser.id,
       createdAt: new Date().toISOString(),
@@ -253,6 +268,28 @@ app.post('/api/bhandaras', verifyAuthToken, requireActiveUser, upload.single('im
   } catch (error) {
     console.error('POST /api/bhandaras error:', error.message);
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.put('/api/bhandaras/:id', verifyAuthToken, requireActiveUser, upload.single('image'), async (req, res) => {
+  try {
+    const parsed = parseBhandaraFields(req.body);
+    if (parsed.error) {
+      return res.status(400).json({ success: false, message: parsed.error, received: req.body });
+    }
+
+    const updated = await updateBhandara(
+      req.params.id,
+      req.authUser.id,
+      parsed.data,
+      req.file ? { ...req.file, mimetype: resolveImageMime(req.file) } : null,
+    );
+
+    res.json({ success: true, data: formatBhandara(updated, req) });
+  } catch (error) {
+    console.error('PUT /api/bhandaras/:id error:', error.message);
+    const status = error.message.includes('not found') ? 404 : error.message.includes('only edit') ? 403 : 400;
+    res.status(status).json({ success: false, message: error.message });
   }
 });
 
