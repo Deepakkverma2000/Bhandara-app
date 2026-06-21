@@ -4,6 +4,7 @@ import '../models/bhandara.dart';
 import '../services/api_service.dart';
 import '../services/location_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_styles.dart';
 import '../widgets/bhandara_card.dart';
 import 'bhandara_detail_screen.dart';
 
@@ -72,42 +73,32 @@ class BhandaraListScreenState extends State<BhandaraListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Find Bhandara',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: loadBhandaras,
-                  icon: const Icon(Icons.refresh_rounded),
-                  color: AppColors.primaryOrange,
-                ),
-              ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppStyles.screenHeader(
+          title: 'Find Bhandara',
+          subtitle: _isLoading
+              ? 'Loading nearby events...'
+              : '${_bhandaras.length} active listing${_bhandaras.length == 1 ? '' : 's'}',
+          trailing: IconButton(
+            onPressed: loadBhandaras,
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AppColors.maroon,
             ),
+            icon: const Icon(Icons.refresh_rounded),
           ),
-          Expanded(child: _buildBody()),
-        ],
-      ),
+        ),
+        Expanded(child: _buildBody()),
+      ],
     );
   }
 
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(color: AppColors.primaryOrange),
+        child: CircularProgressIndicator(color: AppColors.maroon),
       );
     }
 
@@ -118,20 +109,35 @@ class BhandaraListScreenState extends State<BhandaraListScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.wifi_off_rounded, size: 64, color: Colors.grey.shade400),
-              const SizedBox(height: 16),
-              const Text(
-                'Could not connect to server.\nMake sure backend is running.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: loadBhandaras,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryOrange,
-                  foregroundColor: Colors.white,
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: AppStyles.cardShadow,
                 ),
-                child: const Text('Retry'),
+                child: Icon(Icons.wifi_off_rounded, size: 48, color: Colors.grey.shade400),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Could not connect to server',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Make sure backend is running on your PC.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: loadBhandaras,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try Again'),
               ),
             ],
           ),
@@ -141,43 +147,54 @@ class BhandaraListScreenState extends State<BhandaraListScreen> {
 
     if (_bhandaras.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.soup_kitchen_rounded, size: 72, color: Colors.orange.shade200),
-            const SizedBox(height: 16),
-            Text(
-              'No Bhandara found yet',
-              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.iconBg,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Icon(Icons.soup_kitchen_rounded, size: 64, color: AppColors.saffron.withValues(alpha: 0.8)),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'No Bhandara yet',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Be the first to post a Bhandara using the + button below.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, height: 1.4),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return Column(
       children: [
-        if (_locationEnabled)
-          _LocationBanner(
-            icon: Icons.near_me_rounded,
-            text: 'Showing nearest Bhandara first',
-            color: Colors.green.shade50,
-            textColor: Colors.green.shade800,
-          )
-        else
-          _LocationBanner(
-            icon: Icons.location_off_rounded,
-            text: 'Enable location to see nearest Bhandara first',
-            color: Colors.amber.shade50,
-            textColor: Colors.amber.shade900,
-          ),
+        _LocationBanner(
+          enabled: _locationEnabled,
+        ),
         Expanded(
           child: RefreshIndicator(
             onRefresh: loadBhandaras,
-            color: AppColors.primaryOrange,
+            color: AppColors.maroon,
             child: ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 16),
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              padding: const EdgeInsets.only(top: 8, bottom: 24),
               itemCount: _bhandaras.length,
               itemBuilder: (context, index) {
                 final bhandara = _bhandaras[index];
@@ -202,36 +219,41 @@ class BhandaraListScreenState extends State<BhandaraListScreen> {
 }
 
 class _LocationBanner extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color color;
-  final Color textColor;
+  final bool enabled;
 
-  const _LocationBanner({
-    required this.icon,
-    required this.text,
-    required this.color,
-    required this.textColor,
-  });
+  const _LocationBanner({required this.enabled});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(10),
+        color: enabled ? const Color(0xFFE8F5E9) : const Color(0xFFFFF8E1),
+        borderRadius: AppStyles.borderRadiusSm,
+        border: Border.all(
+          color: enabled ? Colors.green.shade200 : Colors.amber.shade200,
+        ),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: textColor),
-          const SizedBox(width: 8),
+          Icon(
+            enabled ? Icons.near_me_rounded : Icons.location_off_rounded,
+            size: 18,
+            color: enabled ? Colors.green.shade700 : Colors.amber.shade900,
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
-              text,
-              style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
+              enabled
+                  ? 'Sorted by nearest Bhandara first'
+                  : 'Enable location to sort by distance',
+              style: TextStyle(
+                color: enabled ? Colors.green.shade800 : Colors.amber.shade900,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
             ),
           ),
         ],

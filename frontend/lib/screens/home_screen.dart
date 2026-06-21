@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_styles.dart';
 import '../widgets/deity_carousel.dart';
 import '../widgets/live_activity_card.dart';
 import '../widgets/services_grid.dart';
@@ -67,7 +68,6 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('$feature — coming soon!'),
-        behavior: SnackBarBehavior.floating,
         backgroundColor: AppColors.maroon,
       ),
     );
@@ -75,32 +75,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final firstName = (AuthService.instance.displayName ?? 'Devotee').split(' ').first;
+
     return SafeArea(
       bottom: false,
       child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _HeroHeader(
+              firstName: firstName,
               unreadCount: NotificationService.instance.unreadCount,
               onNotificationsTap: _openNotifications,
             ),
             Transform.translate(
-              offset: const Offset(0, -24),
+              offset: const Offset(0, -28),
               child: LiveActivityCard(bhandara: _latestBhandara),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SectionTitle(title: 'Our Services'),
-                  const SizedBox(height: 20),
+                  AppStyles.sectionHeader(
+                    'Quick Actions',
+                    subtitle: 'Find seva near you or share your Bhandara',
+                    icon: Icons.bolt_rounded,
+                  ),
                   ServicesGrid(
                     onFindBhandara: widget.onFindBhandara,
                     onPostFood: widget.onPostFood,
                     onPanchang: () => _showComingSoon('Panchang'),
                     onRewards: () => _showComingSoon('Rewards'),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   _OperationalBanner(),
                 ],
               ),
@@ -113,10 +122,12 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _HeroHeader extends StatelessWidget {
+  final String firstName;
   final int unreadCount;
   final VoidCallback onNotificationsTap;
 
   const _HeroHeader({
+    required this.firstName,
     required this.unreadCount,
     required this.onNotificationsTap,
   });
@@ -132,72 +143,98 @@ class _HeroHeader extends StatelessWidget {
           colors: AppColors.heroGradient,
         ),
         borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(28),
-          bottomRight: Radius.circular(28),
+          bottomLeft: Radius.circular(32),
+          bottomRight: Radius.circular(32),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
+      child: Stack(
+        children: [
+          Positioned(
+            right: -30,
+            top: -20,
+            child: Icon(
+              Icons.temple_hindu_rounded,
+              size: 160,
+              color: Colors.white.withValues(alpha: 0.08),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _UserAvatar(),
-                const Spacer(),
-                _NotificationBellButton(
-                  unreadCount: unreadCount,
-                  onTap: onNotificationsTap,
+                Row(
+                  children: [
+                    _UserAvatar(),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Namaste, $firstName',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.92),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const Text(
+                            'Bhandara Live',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _NotificationBellButton(
+                      unreadCount: unreadCount,
+                      onTap: onNotificationsTap,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              "India's first Live",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.5,
-              ),
-            ),
-            ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [AppColors.lightGold, AppColors.gold, Colors.white],
-              ).createShader(bounds),
-              child: const Text(
-                'Bhandara App',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.8,
-                  height: 1.1,
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.circle, size: 8, color: AppColors.liveRed.withValues(alpha: 0.9)),
-                const SizedBox(width: 6),
-                Text(
-                  'Live Seva • Divine Food • Community',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                const SizedBox(height: 20),
+                ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [AppColors.lightGold, AppColors.gold, Colors.white],
+                  ).createShader(bounds),
+                  child: const Text(
+                    "India's First Live\nBhandara App",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      height: 1.15,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AppStyles.liveBadge(scale: 1.1),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Seva • Food • Community',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                const DeityCarousel(),
               ],
             ),
-            const SizedBox(height: 18),
-            const DeityCarousel(),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -220,16 +257,30 @@ class _UserAvatar extends StatelessWidget {
         },
         customBorder: const CircleBorder(),
         child: Container(
-          width: 44,
-          height: 44,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: AppColors.gold, width: 2),
-            color: AppColors.maroon.withValues(alpha: 0.35),
+            border: Border.all(color: AppColors.gold, width: 2.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
             image: avatarUrl != null
                 ? DecorationImage(
                     image: NetworkImage(avatarUrl),
                     fit: BoxFit.cover,
+                  )
+                : null,
+            gradient: avatarUrl == null
+                ? LinearGradient(
+                    colors: [
+                      AppColors.maroon.withValues(alpha: 0.7),
+                      AppColors.deepMaroon.withValues(alpha: 0.9),
+                    ],
                   )
                 : null,
           ),
@@ -263,27 +314,27 @@ class _NotificationBellButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.maroon.withValues(alpha: 0.45),
-      borderRadius: BorderRadius.circular(14),
+      color: Colors.white.withValues(alpha: 0.16),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(11),
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              const Icon(Icons.notifications_rounded, color: AppColors.lightGold, size: 26),
+              const Icon(Icons.notifications_rounded, color: Colors.white, size: 24),
               if (unreadCount > 0)
                 Positioned(
-                  right: -4,
-                  top: -4,
+                  right: -5,
+                  top: -5,
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: const BoxDecoration(
                       color: AppColors.templeRed,
                       shape: BoxShape.circle,
-                      border: Border.fromBorderSide(BorderSide(color: Colors.white, width: 1)),
+                      border: Border.fromBorderSide(BorderSide(color: Colors.white, width: 1.5)),
                     ),
                     constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                     child: Text(
@@ -291,7 +342,7 @@ class _NotificationBellButton extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 9,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -305,79 +356,58 @@ class _NotificationBellButton extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  final String title;
-
-  const _SectionTitle({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Divider(color: AppColors.gold.withValues(alpha: 0.5), thickness: 1),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.maroon,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Divider(color: AppColors.gold.withValues(alpha: 0.5), thickness: 1),
-        ),
-      ],
-    );
-  }
-}
-
 class _OperationalBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.maroon, AppColors.deepMaroon],
+        gradient: LinearGradient(
+          colors: [
+            AppColors.maroon,
+            AppColors.deepMaroon.withValues(alpha: 0.95),
+          ],
         ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+        borderRadius: AppStyles.borderRadiusMd,
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+        boxShadow: AppStyles.softShadow,
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.location_on, color: AppColors.lightGold, size: 16),
-          const SizedBox(width: 6),
-          const Text(
-            'Operational in Delhi NCR',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppColors.saffron,
-              borderRadius: BorderRadius.circular(4),
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text(
-              'Live',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
+            child: const Icon(Icons.location_on_rounded, color: AppColors.lightGold, size: 22),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Operational in Delhi NCR',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Discover live Bhandaras around you',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
+          AppStyles.liveBadge(scale: 1.05),
         ],
       ),
     );

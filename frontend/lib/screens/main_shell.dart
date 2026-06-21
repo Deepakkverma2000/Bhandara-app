@@ -73,6 +73,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       bottomNavigationBar: _AppBottomNav(
         currentIndex: _currentIndex,
         onTap: _onTabSelected,
+        onAddTap: _openAddBhandara,
       ),
     );
   }
@@ -81,10 +82,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 class _AppBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final VoidCallback onAddTap;
 
   const _AppBottomNav({
     required this.currentIndex,
     required this.onTap,
+    required this.onAddTap,
   });
 
   @override
@@ -92,19 +95,19 @@ class _AppBottomNav extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
+            color: AppColors.maroon.withValues(alpha: 0.1),
+            blurRadius: 24,
+            offset: const Offset(0, -6),
           ),
         ],
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _NavItem(
                 icon: Icons.home_rounded,
@@ -118,6 +121,7 @@ class _AppBottomNav extends StatelessWidget {
                 isActive: currentIndex == 1,
                 onTap: () => onTap(1),
               ),
+              _CenterAddButton(onTap: onAddTap),
               _NavItem(
                 icon: Icons.groups_rounded,
                 label: 'Community',
@@ -125,6 +129,45 @@ class _AppBottomNav extends StatelessWidget {
                 onTap: () => onTap(2),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CenterAddButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _CenterAddButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Transform.translate(
+        offset: const Offset(0, -18),
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.saffron, AppColors.deepSaffron],
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.saffron.withValues(alpha: 0.45),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+              border: Border.all(color: Colors.white, width: 3),
+            ),
+            child: const Icon(Icons.add_rounded, color: Colors.white, size: 32),
           ),
         ),
       ),
@@ -147,24 +190,35 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? AppColors.maroon : Colors.grey.shade400;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 26),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: isActive
+                    ? AppColors.maroon.withValues(alpha: 0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                icon,
+                color: isActive ? AppColors.maroon : Colors.grey.shade400,
+                size: 24,
+              ),
+            ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                color: isActive ? AppColors.maroon : Colors.grey.shade500,
+                fontSize: 11,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
           ],

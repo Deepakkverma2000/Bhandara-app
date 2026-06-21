@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/bhandara.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_styles.dart';
 
 class LiveActivityCard extends StatelessWidget {
   final Bhandara? bhandara;
@@ -10,100 +11,114 @@ class LiveActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final publisherName = bhandara?.publisherName ?? 'Priya Verma';
+    final publisherName = bhandara?.publisherName ?? 'Community Member';
     final bhandaraName = bhandara?.bhandaraName ?? 'Free Food Listing';
     final location = bhandara != null
         ? '${bhandara!.village}, ${bhandara!.pinCode}'
-        : 'Lucknow, Uttar Pradesh';
-    final action = bhandara != null
-        ? 'Added "$bhandaraName"'
-        : 'Added One Free Food Listing';
+        : 'Delhi NCR';
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cream,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.45)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: AppColors.iconBg,
-            backgroundImage: bhandara?.imageUrl != null
-                ? NetworkImage(bhandara!.imageUrl!)
-                : const NetworkImage('https://i.pravatar.cc/150?img=32'),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        publisherName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                          color: AppColors.textDark,
+      decoration: AppStyles.cardDecoration(radius: AppStyles.borderRadiusLg),
+      child: ClipRRect(
+        borderRadius: AppStyles.borderRadiusLg,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 5,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [AppColors.saffron, AppColors.maroon],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          color: AppColors.iconBg,
+                          image: bhandara?.imageUrl != null
+                              ? DecorationImage(
+                                  image: NetworkImage(bhandara!.imageUrl!),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: bhandara?.imageUrl == null
+                            ? const Icon(
+                                Icons.soup_kitchen_rounded,
+                                color: AppColors.maroon,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    publisherName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: AppColors.textDark,
+                                    ),
+                                  ),
+                                ),
+                                AppStyles.liveBadge(),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              location,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            RichText(
+                              text: TextSpan(
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textDark,
+                                  height: 1.35,
+                                ),
+                                children: [
+                                  const TextSpan(text: 'Added '),
+                                  TextSpan(
+                                    text: '"$bhandaraName"',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.maroon,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: AppColors.liveRed,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'Live',
-                          style: TextStyle(
-                            color: AppColors.liveRed,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  location,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  action,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textDark,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
