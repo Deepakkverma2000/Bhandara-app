@@ -158,7 +158,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (confirmed != true || !mounted) return;
 
-    await AuthService.instance.signOut();
+    try {
+      await AuthService.instance.signOut();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
+    }
   }
 
   void _openBhandara(Bhandara bhandara) {

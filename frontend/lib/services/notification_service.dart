@@ -9,6 +9,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../config/firebase_config.dart';
 import '../models/app_notification.dart';
 import 'api_service.dart';
+import 'auth_service.dart';
 import 'device_id_service.dart';
 
 @pragma('vm:entry-point')
@@ -40,9 +41,12 @@ class NotificationService extends ChangeNotifier {
   int get unreadCount => _unreadCount;
   String? get deviceId => _deviceId;
 
+  String? get _userId => AuthService.instance.currentUser?.id;
+
   /// Call after first frame — do not block [main].
   Future<void> initialize() async {
     if (_initialized || _initializing) return;
+    if (_userId == null) return;
     _initializing = true;
 
     try {
@@ -53,13 +57,24 @@ class NotificationService extends ChangeNotifier {
       await refresh();
 
       _pollTimer?.cancel();
-      _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) => refresh());
+      _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) => refresh());
       _initialized = true;
     } catch (e, stack) {
       debugPrint('NotificationService init error: $e\n$stack');
     } finally {
       _initializing = false;
     }
+  }
+
+  void resetForSignOut() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    _notifications = [];
+    _unreadCount = 0;
+    _initialized = false;
+    _initializing = false;
+    _firstRefresh = true;
+    notifyListeners();
   }
 
   Future<void> _setupLocalNotifications() async {
@@ -128,11 +143,15 @@ class NotificationService extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
-    if (_deviceId == null) return;
+    if (_deviceId == null || _userId == null) return;
 
     try {
       final previousUnread = _unreadCount;
-      _notifications = await _api.fetchNotifications(_deviceId!, unreadOnly: true);
+      _notifications = await _api.fetchNotifications(
+        _deviceId!,
+        userId: _userId,
+        unreadOnly: true,
+      );
       _unreadCount = _notifications.length;
 
       if (!_firstRefresh && _unreadCount > previousUnread && _notifications.isNotEmpty) {
@@ -148,9 +167,13 @@ class NotificationService extends ChangeNotifier {
   }
 
   Future<void> markAsRead(String notificationId) async {
-    if (_deviceId == null) return;
+    if (_deviceId == null || _userId == null) return;
     try {
-      await _api.markNotificationRead(notificationId, _deviceId!);
+      await _api.markNotificationRead(
+        notificationId,
+        _deviceId!,
+        userId: _userId,
+      );
     } catch (e) {
       debugPrint('markAsRead failed: $e');
     }
@@ -159,16 +182,34 @@ class NotificationService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> markAllAsRead() async {
-    if (_deviceId == null) return;
-    try {
-      await _api.markAllNotificationsRead(_deviceId!);
-    } catch (e) {
-      debugPrint('markAllAsRead failed: $e');
+  Future<void> ensureReady() async {
+    if (_userId == null) return;
+
+    if (_deviceId == null) {
+      _deviceId = await DeviceIdService.getDeviceId();
     }
+
+    if (!_initialized && !_initializing) {
+      await initialize();
+    }
+  }
+
+  Future<void> markAllAsRead() async {
     _notifications = [];
     _unreadCount = 0;
     notifyListeners();
+
+    if (_userId == null) return;
+
+    _deviceId ??= await DeviceIdService.getDeviceId();
+
+    if (_deviceId == null) return;
+
+    try {
+      await _api.markAllNotificationsRead(_deviceId!, userId: _userId);
+    } catch (e) {
+      debugPrint('markAllAsRead failed: $e');
+    }
   }
 
   Future<void> _showPushNotification(RemoteMessage message) async {

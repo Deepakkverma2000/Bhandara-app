@@ -1,9 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
 
-class AuthService {
+class AuthService extends ChangeNotifier {
   AuthService._();
 
   static final AuthService instance = AuthService._();
@@ -13,6 +14,8 @@ class AuthService {
   Session? get session => _client.auth.currentSession;
 
   User? get currentUser => _client.auth.currentUser;
+
+  bool get isSignedIn => currentUser != null;
 
   Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
 
@@ -52,7 +55,6 @@ class AuthService {
 
     final googleSignIn = _googleSignIn();
 
-    // Clear cached Google session so a fresh ID token is issued for serverClientId.
     await googleSignIn.signOut();
 
     final googleUser = await googleSignIn.signIn();
@@ -75,6 +77,7 @@ class AuthService {
         idToken: idToken,
         accessToken: googleAuth.accessToken,
       );
+      notifyListeners();
     } on AuthException catch (error) {
       if (error.message.contains('Unacceptable audience')) {
         throw Exception(
@@ -87,8 +90,17 @@ class AuthService {
   }
 
   Future<void> signOut() async {
-    await _googleSignIn().signOut();
-    await _client.auth.signOut();
+    try {
+      await _googleSignIn().signOut();
+    } catch (_) {}
+
+    await _client.auth.signOut(scope: SignOutScope.global);
+
+    if (_client.auth.currentSession != null) {
+      await _client.auth.signOut(scope: SignOutScope.local);
+    }
+
+    notifyListeners();
   }
 
   Future<bool> isCurrentUserBlocked() async {

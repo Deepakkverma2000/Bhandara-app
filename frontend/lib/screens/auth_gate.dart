@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import 'blocked_screen.dart';
 import 'login_screen.dart';
 import 'main_shell.dart';
@@ -14,68 +15,89 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
+  Session? _session;
   bool _checkingBlockStatus = false;
   bool _isBlocked = false;
 
   @override
   void initState() {
     super.initState();
-    _refreshBlockStatus();
-    AuthService.instance.authStateChanges.listen((_) {
-      _refreshBlockStatus();
+    _syncSession();
+    Supabase.instance.client.auth.onAuthStateChange.listen(_onAuthStateChange);
+    AuthService.instance.addListener(_syncSession);
+  }
+
+  @override
+  void dispose() {
+    AuthService.instance.removeListener(_syncSession);
+    super.dispose();
+  }
+
+  void _onAuthStateChange(AuthState data) {
+    if (!mounted) return;
+    _applySession(data.session);
+  }
+
+  void _syncSession() {
+    if (!mounted) return;
+    _applySession(Supabase.instance.client.auth.currentSession);
+  }
+
+  void _applySession(Session? session) {
+    final signedOut = session == null;
+
+    setState(() {
+      _session = session;
+      if (signedOut) {
+        _isBlocked = false;
+        _checkingBlockStatus = false;
+      }
     });
+
+    if (signedOut) {
+      NotificationService.instance.resetForSignOut();
+      return;
+    }
+
+    _refreshBlockStatus();
+    NotificationService.instance.initialize();
   }
 
   Future<void> _refreshBlockStatus() async {
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session == null) {
-      if (mounted) {
-        setState(() {
-          _isBlocked = false;
-          _checkingBlockStatus = false;
-        });
-      }
-      return;
-    }
+    if (_session == null) return;
 
     setState(() => _checkingBlockStatus = true);
 
     try {
       final blocked = await AuthService.instance.isCurrentUserBlocked();
-      if (mounted) {
-        setState(() {
-          _isBlocked = blocked;
-          _checkingBlockStatus = false;
-        });
-      }
+      if (!mounted || _session == null) return;
+      setState(() {
+        _isBlocked = blocked;
+        _checkingBlockStatus = false;
+      });
     } catch (_) {
-      if (mounted) setState(() => _checkingBlockStatus = false);
+      if (mounted && _session != null) {
+        setState(() => _checkingBlockStatus = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<AuthState>(
-      stream: Supabase.instance.client.auth.onAuthStateChange,
-      builder: (context, snapshot) {
-        final session = Supabase.instance.client.auth.currentSession;
+    if (_session == null) {
+      return const LoginScreen(key: ValueKey('login'));
+    }
 
-        if (session == null) {
-          return const LoginScreen();
-        }
+    if (_checkingBlockStatus) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-        if (_checkingBlockStatus) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+    if (_isBlocked) {
+      return const BlockedScreen(key: ValueKey('blocked'));
+    }
 
-        if (_isBlocked) {
-          return const BlockedScreen();
-        }
-
-        return const MainShell();
-      },
-    );
+    return const MainShell(key: ValueKey('main'));
   }
 }

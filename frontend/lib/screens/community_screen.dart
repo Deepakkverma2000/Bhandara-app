@@ -59,7 +59,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
     if (confirmed != true || !mounted) return;
 
-    await AuthService.instance.signOut();
+    try {
+      await AuthService.instance.signOut();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    }
   }
 
   void _openAdminReports() {

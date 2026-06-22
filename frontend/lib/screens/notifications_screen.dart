@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../models/app_notification.dart';
 import '../models/bhandara.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
+import '../services/device_id_service.dart';
 import '../services/notification_service.dart';
 import '../theme/app_colors.dart';
 import 'bhandara_detail_screen.dart';
@@ -25,21 +27,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     _load();
-    NotificationService.instance.addListener(_onServiceUpdate);
   }
 
   @override
   void dispose() {
-    NotificationService.instance.removeListener(_onServiceUpdate);
     super.dispose();
-  }
-
-  void _onServiceUpdate() {
-    if (mounted) {
-      setState(() {
-        _notifications = NotificationService.instance.notifications;
-      });
-    }
   }
 
   Future<void> _load() async {
@@ -49,17 +41,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
 
     try {
-      await NotificationService.instance.refresh();
+      final deviceId =
+          NotificationService.instance.deviceId ?? await DeviceIdService.getDeviceId();
+      final userId = AuthService.instance.currentUser?.id;
+
+      if (userId == null) {
+        throw Exception('Login required');
+      }
+
+      final list = await _api.fetchNotifications(
+        deviceId,
+        userId: userId,
+        unreadOnly: false,
+      );
+
       if (mounted) {
         setState(() {
-          _notifications = NotificationService.instance.notifications;
+          _notifications = list;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = e.toString().replaceFirst('Exception: ', '');
           _isLoading = false;
         });
       }
@@ -67,14 +72,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _openNotification(AppNotification notification) async {
-    await NotificationService.instance.markAsRead(notification.id);
-
-    if (mounted) {
-      setState(() {
-        _notifications = NotificationService.instance.notifications;
-      });
-    }
-
     if (notification.bhandaraId != null && mounted) {
       try {
         final bhandara = await _fetchBhandaraById(notification.bhandaraId!);
@@ -104,16 +101,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       backgroundColor: AppColors.cream,
       appBar: AppBar(
         title: const Text('Notifications'),
-        actions: [
-          if (_notifications.isNotEmpty)
-            TextButton(
-              onPressed: () async {
-                await NotificationService.instance.markAllAsRead();
-                if (mounted) setState(() => _notifications = []);
-              },
-              child: const Text('Clear all', style: TextStyle(color: Colors.white)),
-            ),
-        ],
       ),
       body: _buildBody(),
     );
@@ -152,12 +139,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             Icon(Icons.notifications_none_rounded, size: 72, color: Colors.orange.shade200),
             const SizedBox(height: 16),
             Text(
-              'No new notifications',
+              'No notifications yet',
               style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 8),
             Text(
-              'Seen notifications are cleared from here.\nYou will be alerted when a new Bhandara is added.',
+              'You will be alerted here when a new Bhandara is added.',
               style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
               textAlign: TextAlign.center,
             ),

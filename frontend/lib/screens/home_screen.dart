@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/bhandara.dart';
+import '../models/food_share_post.dart';
+import '../models/home_activity_item.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/location_service.dart';
 import '../services/notification_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_styles.dart';
@@ -28,17 +33,22 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _apiService = ApiService();
-  Bhandara? _latestBhandara;
+  final _locationService = LocationService();
+
+  List<HomeActivityItem> _activityItems = [];
+  int _activityIndex = 0;
+  Timer? _activityTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadLatest();
+    _loadActivityFeed();
     NotificationService.instance.addListener(_onNotificationsChanged);
   }
 
   @override
   void dispose() {
+    _activityTimer?.cancel();
     NotificationService.instance.removeListener(_onNotificationsChanged);
     super.dispose();
   }
@@ -47,21 +57,82 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() {});
   }
 
-  void _openNotifications() async {
+  Future<void> _openNotifications() async {
+    if (!mounted) return;
+
+    unawaited(NotificationService.instance.markAllAsRead());
+
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const NotificationsScreen()),
     );
+
     if (mounted) setState(() {});
   }
 
-  Future<void> _loadLatest() async {
+  Future<void> _loadActivityFeed() async {
     try {
-      final list = await _apiService.fetchBhandaras();
-      if (mounted && list.isNotEmpty) {
-        setState(() => _latestBhandara = list.first);
+      final granted = await _locationService.requestPermission();
+      double? lat;
+      double? lng;
+
+      if (granted) {
+        final position = await _locationService.getCurrentPosition();
+        if (position != null) {
+          lat = position.latitude;
+          lng = position.longitude;
+        }
       }
+
+      final results = await Future.wait([
+        _apiService.fetchBhandaras(latitude: lat, longitude: lng),
+        _apiService.fetchFoodSharePosts(latitude: lat, longitude: lng),
+      ]);
+
+      final bhandaras = results[0] as List<Bhandara>;
+      final foodShares = results[1] as List<FoodSharePost>;
+
+      final items = <HomeActivityItem>[
+        ...bhandaras.map(HomeActivityItem.fromBhandara),
+        ...foodShares.map(HomeActivityItem.fromFoodShare),
+      ];
+
+      items.sort((a, b) {
+        final aDist = a.distanceKm;
+        final bDist = b.distanceKm;
+        if (aDist == null && bDist == null) return 0;
+        if (aDist == null) return 1;
+        if (bDist == null) return -1;
+        return aDist.compareTo(bDist);
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        _activityItems = items.take(6).toList();
+        _activityIndex = 0;
+      });
+
+      _startActivityRotation();
     } catch (_) {}
+  }
+
+  void _startActivityRotation() {
+    _activityTimer?.cancel();
+
+    if (_activityItems.length <= 1) return;
+
+    _activityTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted || _activityItems.isEmpty) return;
+      setState(() {
+        _activityIndex = (_activityIndex + 1) % _activityItems.length;
+      });
+    });
+  }
+
+  HomeActivityItem? get _currentActivity {
+    if (_activityItems.isEmpty) return null;
+    return _activityItems[_activityIndex.clamp(0, _activityItems.length - 1)];
   }
 
   void _showComingSoon(String feature) {
@@ -91,7 +162,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             Transform.translate(
               offset: const Offset(0, -28),
-              child: LiveActivityCard(bhandara: _latestBhandara),
+              child: LiveActivityCard(
+                item: _currentActivity,
+                itemCount: _activityItems.length,
+                activeIndex: _activityIndex,
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
@@ -159,7 +234,7 @@ class _HeroHeader extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -329,21 +404,25 @@ class _NotificationBellButton extends StatelessWidget {
                 Positioned(
                   right: -5,
                   top: -5,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: AppColors.templeRed,
-                      shape: BoxShape.circle,
-                      border: Border.fromBorderSide(BorderSide(color: Colors.white, width: 1.5)),
-                    ),
-                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                    child: Text(
-                      unreadCount > 9 ? '9+' : '$unreadCount',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.templeRed,
+                        shape: BoxShape.circle,
+                        border: Border.fromBorderSide(
+                          BorderSide(color: Colors.white, width: 1.5),
+                        ),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      child: Text(
+                        unreadCount > 9 ? '9+' : '$unreadCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),

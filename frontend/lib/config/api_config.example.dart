@@ -21,4 +21,8 @@ class ApiConfig {
   static String get adminReportsByUserUrl => '$baseUrl/api/admin/reports/by-user';
   static String adminUserBlockUrl(String userId) => '$baseUrl/api/admin/users/$userId/block';
   static String get myBhandarasUrl => '$baseUrl/api/users/me/bhandaras';
+  static String get foodSharesUrl => '$baseUrl/api/food-shares';
+  static String foodShareAcceptUrl(String id) => '$baseUrl/api/food-shares/$id/accept';
+  static String foodShareUrl(String id) => '$baseUrl/api/food-shares/$id';
+  static String foodShareDeleteUrl(String id) => foodShareUrl(id);
 }

@@ -23,8 +23,15 @@ const {
   markAllRead,
   notifyNewBhandara,
 } = require('./notifications');
-const { verifyAuthToken, requireActiveUser, requireAdmin } = require('./auth');
+const { verifyAuthToken, optionalAuthToken, requireActiveUser, requireAdmin } = require('./auth');
 const { submitBhandaraReport, getUserBlockStatus, getAllReportsForAdmin, getReportsGroupedByUserForAdmin, setUserBlocked } = require('./reports');
+const {
+  getAllFoodShares,
+  createFoodShare,
+  updateFoodShare,
+  acceptFoodShare,
+  deleteFoodShare,
+} = require('./food_shares');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -136,6 +143,91 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+function formatFoodShare(row, req) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    postedBy: row.postedBy || row.posted_by || null,
+    contactName: row.contactName || row.contact_name,
+    phoneNumber: row.phoneNumber || row.phone_number,
+    eventName: row.eventName || row.event_name || null,
+    foodDescription: row.foodDescription || row.food_description,
+    quantity: row.quantity || null,
+    street: row.street,
+    village: row.village,
+    pinCode: row.pinCode || row.pin_code,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    status: row.status,
+    acceptedBy: row.acceptedBy || row.accepted_by || null,
+    acceptedByName: row.acceptedByName || row.accepted_by_name || null,
+    acceptedByPhone: row.acceptedByPhone || row.accepted_by_phone || null,
+    acceptedPickupTime: row.acceptedPickupTime || row.accepted_pickup_time || null,
+    acceptedPlatesRequired: row.acceptedPlatesRequired ?? row.accepted_plates_required ?? null,
+    acceptedAt: row.acceptedAt || row.accepted_at || null,
+    createdAt: row.createdAt || row.created_at,
+  };
+}
+
+function parseFoodShareFields(body) {
+  const {
+    contactName,
+    phoneNumber,
+    eventName,
+    foodDescription,
+    quantity,
+    street,
+    village,
+    pinCode,
+    latitude,
+    longitude,
+  } = body;
+
+  const finalContactName = (contactName || '').trim();
+  const finalPhone = (phoneNumber || '').trim();
+  const finalFood = (foodDescription || '').trim();
+  const finalStreet = (street || '').trim();
+  const finalVillage = (village || '').trim();
+  const finalPin = (pinCode || '').trim();
+
+  if (!finalContactName || !finalPhone || !finalFood || !finalStreet || !finalVillage || !finalPin) {
+    return {
+      error: 'Required: contactName, phoneNumber, foodDescription, street, village, pinCode, latitude, longitude',
+    };
+  }
+
+  if (!/^\d{10}$/.test(finalPhone.replace(/\s/g, ''))) {
+    return { error: 'Enter a valid 10-digit phone number' };
+  }
+
+  if (finalPin.length !== 6) {
+    return { error: 'Enter a valid 6-digit pin code' };
+  }
+
+  const lat = parseFloat(latitude);
+  const lng = parseFloat(longitude);
+
+  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+    return { error: 'Invalid latitude or longitude' };
+  }
+
+  return {
+    data: {
+      contactName: finalContactName,
+      phoneNumber: finalPhone.replace(/\s/g, ''),
+      eventName: (eventName || '').trim() || null,
+      foodDescription: finalFood,
+      quantity: (quantity || '').trim() || null,
+      street: finalStreet,
+      village: finalVillage,
+      pinCode: finalPin,
+      latitude: lat,
+      longitude: lng,
+    },
+  };
 }
 
 app.get('/api/health', (_req, res) => {
@@ -260,7 +352,7 @@ app.post('/api/bhandaras', verifyAuthToken, requireActiveUser, upload.single('im
     console.log('Bhandara created:', created.id);
 
     const excludeDeviceId = req.body.deviceId || req.headers['x-device-id'] || null;
-    notifyNewBhandara(created, excludeDeviceId).catch((err) => {
+    notifyNewBhandara(created, req.authUser.id, excludeDeviceId).catch((err) => {
       console.error('Notification error:', err.message);
     });
 
@@ -365,6 +457,139 @@ app.get('/api/users/me/bhandaras', verifyAuthToken, requireActiveUser, async (re
   }
 });
 
+app.get('/api/food-shares', optionalAuthToken, async (req, res) => {
+  try {
+    const userLat = parseFloat(req.query.lat);
+    const userLng = parseFloat(req.query.lng);
+    const hasLocation = !Number.isNaN(userLat) && !Number.isNaN(userLng);
+    const userId = req.authUser?.id || null;
+
+    let posts = (await getAllFoodShares()).map((row) => {
+      const formatted = formatFoodShare(row, req);
+      return {
+        ...formatted,
+        isOwner: userId != null && formatted.postedBy === userId,
+      };
+    });
+
+    if (hasLocation) {
+      posts = posts
+        .map((p) => ({
+          ...p,
+          distanceKm: haversineDistance(userLat, userLng, p.latitude, p.longitude),
+        }))
+        .sort((a, b) => a.distanceKm - b.distanceKm);
+    }
+
+    res.json({ success: true, data: posts });
+  } catch (error) {
+    console.error('GET /api/food-shares error:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/food-shares', verifyAuthToken, requireActiveUser, async (req, res) => {
+  try {
+    const parsed = parseFoodShareFields(req.body);
+    if (parsed.error) {
+      return res.status(400).json({ success: false, message: parsed.error });
+    }
+
+    const data = {
+      id: uuidv4(),
+      ...parsed.data,
+      postedBy: req.authUser.id,
+      status: 'open',
+      acceptedBy: null,
+      acceptedByName: null,
+      acceptedByPhone: null,
+      acceptedAt: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    const created = await createFoodShare(data);
+    res.status(201).json({ success: true, data: formatFoodShare(created, req) });
+  } catch (error) {
+    console.error('POST /api/food-shares error:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.put('/api/food-shares/:id', verifyAuthToken, requireActiveUser, async (req, res) => {
+  try {
+    const parsed = parseFoodShareFields(req.body);
+    if (parsed.error) {
+      return res.status(400).json({ success: false, message: parsed.error });
+    }
+
+    const updated = await updateFoodShare(req.params.id, req.authUser.id, parsed.data);
+    res.json({ success: true, data: formatFoodShare(updated, req) });
+  } catch (error) {
+    console.error('PUT /api/food-shares/:id error:', error.message);
+    const status = error.message.includes('only edit')
+      ? 403
+      : error.message.includes('not found')
+          ? 404
+          : 400;
+    res.status(status).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/food-shares/:id/accept', verifyAuthToken, requireActiveUser, async (req, res) => {
+  try {
+    const contactName = (req.body?.contactName || req.authUser.user_metadata?.full_name || req.authUser.email || 'Volunteer').trim();
+    const phoneNumber = (req.body?.phoneNumber || '').trim().replace(/\s/g, '');
+    const pickupTime = req.body?.pickupTime;
+    const platesRequired = parseInt(req.body?.platesRequired, 10);
+
+    if (!contactName) {
+      return res.status(400).json({ success: false, message: 'Name is required to accept' });
+    }
+
+    if (!phoneNumber || !/^\d{10}$/.test(phoneNumber)) {
+      return res.status(400).json({ success: false, message: 'A valid 10-digit phone number is required to accept' });
+    }
+
+    if (!pickupTime || Number.isNaN(Date.parse(pickupTime))) {
+      return res.status(400).json({ success: false, message: 'Valid pickup time is required' });
+    }
+
+    if (!Number.isInteger(platesRequired) || platesRequired < 1) {
+      return res.status(400).json({ success: false, message: 'Number of plates required must be at least 1' });
+    }
+
+    const updated = await acceptFoodShare(req.params.id, req.authUser.id, {
+      contactName,
+      phoneNumber,
+      pickupTime,
+      platesRequired,
+    });
+
+    res.json({ success: true, data: formatFoodShare(updated, req) });
+  } catch (error) {
+    console.error('POST /api/food-shares/:id/accept error:', error.message);
+    const status = error.message.includes('already been accepted')
+      ? 409
+      : error.message.includes('cannot accept')
+        ? 403
+        : error.message.includes('not found')
+          ? 404
+          : 400;
+    res.status(status).json({ success: false, message: error.message });
+  }
+});
+
+app.delete('/api/food-shares/:id', verifyAuthToken, requireActiveUser, async (req, res) => {
+  try {
+    await deleteFoodShare(req.params.id, req.authUser.id);
+    res.json({ success: true, message: 'Post removed' });
+  } catch (error) {
+    console.error('DELETE /api/food-shares/:id error:', error.message);
+    const status = error.message.includes('only remove') ? 403 : error.message.includes('not found') ? 404 : 400;
+    res.status(status).json({ success: false, message: error.message });
+  }
+});
+
 app.get('/api/admin/reports', verifyAuthToken, requireAdmin, async (req, res) => {
   try {
     const reports = await getAllReportsForAdmin();
@@ -428,12 +653,20 @@ app.post('/api/device-tokens', async (req, res) => {
 app.get('/api/notifications', async (req, res) => {
   try {
     const deviceId = req.query.deviceId;
-    if (!deviceId) {
-      return res.status(400).json({ success: false, message: 'deviceId query param is required' });
+    const userId = req.query.userId || null;
+
+    if (!deviceId && !userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'deviceId or userId query param is required',
+      });
     }
 
     const unreadOnly = req.query.unreadOnly === 'true';
-    const notifications = await getNotificationsForDevice(deviceId, { unreadOnly });
+    const notifications = await getNotificationsForDevice(deviceId, {
+      userId,
+      unreadOnly,
+    });
     res.json({ success: true, data: notifications });
   } catch (error) {
     console.error('GET /api/notifications error:', error.message);
@@ -444,11 +677,16 @@ app.get('/api/notifications', async (req, res) => {
 app.get('/api/notifications/unread-count', async (req, res) => {
   try {
     const deviceId = req.query.deviceId;
-    if (!deviceId) {
-      return res.status(400).json({ success: false, message: 'deviceId query param is required' });
+    const userId = req.query.userId || null;
+
+    if (!deviceId && !userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'deviceId or userId query param is required',
+      });
     }
 
-    const count = await getUnreadCount(deviceId);
+    const count = await getUnreadCount(deviceId, userId);
     res.json({ success: true, count });
   } catch (error) {
     console.error('GET /api/notifications/unread-count error:', error.message);
@@ -458,12 +696,15 @@ app.get('/api/notifications/unread-count', async (req, res) => {
 
 app.post('/api/notifications/:id/read', async (req, res) => {
   try {
-    const { deviceId } = req.body;
-    if (!deviceId) {
-      return res.status(400).json({ success: false, message: 'deviceId is required' });
+    const { deviceId, userId } = req.body;
+    if (!deviceId && !userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'deviceId or userId is required',
+      });
     }
 
-    await markNotificationRead(req.params.id, deviceId);
+    await markNotificationRead(req.params.id, deviceId, userId);
     res.json({ success: true });
   } catch (error) {
     console.error('POST /api/notifications/:id/read error:', error.message);
@@ -473,12 +714,15 @@ app.post('/api/notifications/:id/read', async (req, res) => {
 
 app.post('/api/notifications/read-all', async (req, res) => {
   try {
-    const { deviceId } = req.body;
-    if (!deviceId) {
-      return res.status(400).json({ success: false, message: 'deviceId is required' });
+    const { deviceId, userId } = req.body;
+    if (!deviceId && !userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'deviceId or userId is required',
+      });
     }
 
-    const result = await markAllRead(deviceId);
+    const result = await markAllRead(deviceId, userId);
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('POST /api/notifications/read-all error:', error.message);

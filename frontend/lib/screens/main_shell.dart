@@ -4,7 +4,7 @@ import '../services/notification_service.dart';
 import '../theme/app_colors.dart';
 import 'add_bhandara_screen.dart';
 import 'bhandara_list_screen.dart';
-import 'community_screen.dart';
+import 'food_share_screen.dart';
 import 'home_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -41,6 +41,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   void _onTabSelected(int index) {
     setState(() => _currentIndex = index);
+    if (index == 0) {
+      NotificationService.instance.refresh();
+    }
   }
 
   void _goToBhandaraTab() => _onTabSelected(1);
@@ -67,7 +70,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             onPostFood: _openAddBhandara,
           ),
           const BhandaraListScreen(),
-          const CommunityScreen(),
+          const FoodShareScreen(),
         ],
       ),
       bottomNavigationBar: _AppBottomNav(
@@ -123,8 +126,8 @@ class _AppBottomNav extends StatelessWidget {
               ),
               _CenterAddButton(onTap: onAddTap),
               _NavItem(
-                icon: Icons.groups_rounded,
-                label: 'Community',
+                icon: Icons.restaurant_rounded,
+                label: 'Share Food',
                 isActive: currentIndex == 2,
                 onTap: () => onTap(2),
               ),

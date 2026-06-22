@@ -99,8 +99,8 @@ async function upsertDeviceToken({ deviceId, fcmToken, platform, latitude, longi
   return record;
 }
 
-async function getNotificationsForDevice(deviceId, { unreadOnly = false } = {}) {
-  if (!deviceId) throw new Error('deviceId is required');
+async function getNotificationsForDevice(deviceId, { userId = null, unreadOnly = false } = {}) {
+  if (!deviceId && !userId) throw new Error('deviceId or userId is required');
 
   let list;
 
@@ -110,7 +110,9 @@ async function getNotificationsForDevice(deviceId, { unreadOnly = false } = {}) 
     const [{ data: notifications, error: notifError }, { data: reads, error: readError }] =
       await Promise.all([
         supabase.from('notifications').select('*').order('created_at', { ascending: false }),
-        supabase.from('notification_reads').select('notification_id').eq('device_id', deviceId),
+        userId
+          ? supabase.from('notification_reads').select('notification_id').eq('user_id', userId)
+          : supabase.from('notification_reads').select('notification_id').eq('device_id', deviceId),
       ]);
 
     if (notifError) throw new Error(notifError.message);
@@ -120,7 +122,9 @@ async function getNotificationsForDevice(deviceId, { unreadOnly = false } = {}) 
     list = (notifications || []).map((n) => formatNotification(n, deviceId, readIds));
   } else {
     const notifications = readJson(notificationsPath);
-    const reads = readJson(readsPath).filter((r) => r.deviceId === deviceId);
+    const reads = readJson(readsPath).filter((r) =>
+      userId ? r.userId === userId : r.deviceId === deviceId,
+    );
     const readIds = new Set(reads.map((r) => r.notificationId));
 
     list = notifications
@@ -135,40 +139,53 @@ async function getNotificationsForDevice(deviceId, { unreadOnly = false } = {}) 
   return list;
 }
 
-async function getUnreadCount(deviceId) {
-  const list = await getNotificationsForDevice(deviceId, { unreadOnly: true });
+async function getUnreadCount(deviceId, userId = null) {
+  const list = await getNotificationsForDevice(deviceId, { userId, unreadOnly: true });
   return list.length;
 }
 
-async function markNotificationRead(notificationId, deviceId) {
-  if (!notificationId || !deviceId) throw new Error('notificationId and deviceId are required');
+async function markNotificationRead(notificationId, deviceId, userId = null) {
+  if (!notificationId || (!deviceId && !userId)) {
+    throw new Error('notificationId and deviceId or userId are required');
+  }
+
+  const now = new Date().toISOString();
 
   if (isSupabaseConfigured()) {
     const supabase = getSupabase();
-    const { error } = await supabase.from('notification_reads').upsert(
-      {
-        notification_id: notificationId,
-        device_id: deviceId,
-        read_at: new Date().toISOString(),
-      },
-      { onConflict: 'notification_id,device_id' },
-    );
+    const row = userId
+      ? {
+          notification_id: notificationId,
+          user_id: userId,
+          device_id: deviceId || `user-${userId}`,
+          read_at: now,
+        }
+      : {
+          notification_id: notificationId,
+          device_id: deviceId,
+          read_at: now,
+        };
+
+    const onConflict = userId ? 'notification_id,user_id' : 'notification_id,device_id';
+    const { error } = await supabase.from('notification_reads').upsert(row, { onConflict });
 
     if (error) throw new Error(error.message);
     return { success: true };
   }
 
   const reads = readJson(readsPath);
-  const exists = reads.some(
-    (r) => r.notificationId === notificationId && r.deviceId === deviceId,
+  const exists = reads.some((r) =>
+    r.notificationId === notificationId &&
+    (userId ? r.userId === userId : r.deviceId === deviceId),
   );
 
   if (!exists) {
     reads.push({
       id: uuidv4(),
       notificationId,
-      deviceId,
-      readAt: new Date().toISOString(),
+      deviceId: deviceId || null,
+      userId: userId || null,
+      readAt: now,
     });
     writeJson(readsPath, reads);
   }
@@ -176,12 +193,12 @@ async function markNotificationRead(notificationId, deviceId) {
   return { success: true };
 }
 
-async function markAllRead(deviceId) {
-  const notifications = await getNotificationsForDevice(deviceId);
+async function markAllRead(deviceId, userId = null) {
+  const notifications = await getNotificationsForDevice(deviceId, { userId });
   const unread = notifications.filter((n) => !n.isRead);
 
   for (const n of unread) {
-    await markNotificationRead(n.id, deviceId);
+    await markNotificationRead(n.id, deviceId, userId);
   }
 
   return { success: true, count: unread.length };
@@ -246,12 +263,16 @@ async function getAllDeviceTokens(excludeDeviceId = null) {
   }));
 }
 
-async function notifyNewBhandara(bhandara, excludeDeviceId = null) {
+async function notifyNewBhandara(bhandara, excludeUserId = null, excludeDeviceId = null) {
   const notification = await createNotificationRecord(bhandara);
 
   // Don't show notification to the user who just added the Bhandara
-  if (excludeDeviceId && notification?.id) {
-    await markNotificationRead(notification.id, excludeDeviceId);
+  if (notification?.id) {
+    if (excludeUserId) {
+      await markNotificationRead(notification.id, excludeDeviceId, excludeUserId);
+    } else if (excludeDeviceId) {
+      await markNotificationRead(notification.id, excludeDeviceId);
+    }
   }
 
   const tokens = await getAllDeviceTokens(excludeDeviceId);

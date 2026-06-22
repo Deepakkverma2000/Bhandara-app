@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -33,6 +35,9 @@ class _MapPickerWidgetState extends State<MapPickerWidget> {
   List<PlaceSearchResult> _searchResults = [];
   bool _isSearching = false;
   bool _isLocating = false;
+  bool _suppressSearchListener = false;
+  int _searchRequestId = 0;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -44,39 +49,87 @@ class _MapPickerWidgetState extends State<MapPickerWidget> {
   @override
   void didUpdateWidget(MapPickerWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialPosition != widget.initialPosition) {
-      _moveToPosition(widget.initialPosition);
+    if (!_samePosition(widget.initialPosition, _selectedPosition)) {
+      _moveToPosition(widget.initialPosition, notifyParent: false);
     }
   }
 
-  void _moveToPosition(LatLng position) {
+  bool _samePosition(LatLng a, LatLng b) =>
+      a.latitude == b.latitude && a.longitude == b.longitude;
+
+  void _moveToPosition(LatLng position, {bool notifyParent = true}) {
+    if (_samePosition(_selectedPosition, position)) return;
+
     setState(() => _selectedPosition = position);
-    _mapController.move(position, 16);
-    widget.onPositionChanged(position);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _mapController.move(position, 16);
+      if (notifyParent) widget.onPositionChanged(position);
+    });
   }
 
   Future<void> _searchPlaces(String query) async {
-    if (query.trim().length < 3) {
-      setState(() => _searchResults = []);
+    if (_suppressSearchListener) return;
+
+    _debounceTimer?.cancel();
+    final trimmed = query.trim();
+
+    if (trimmed.length < 3) {
+      _searchRequestId++;
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+          _isSearching = false;
+        });
+      }
       return;
     }
 
-    setState(() => _isSearching = true);
-    try {
-      final results = await _geocodingService.searchPlaces(query);
-      if (mounted) setState(() => _searchResults = results);
-    } finally {
-      if (mounted) setState(() => _isSearching = false);
-    }
+    _debounceTimer = Timer(const Duration(milliseconds: 400), () async {
+      final requestId = ++_searchRequestId;
+      if (!mounted) return;
+
+      setState(() => _isSearching = true);
+      try {
+        final results = await _geocodingService.searchPlaces(trimmed);
+        if (!mounted || requestId != _searchRequestId) return;
+        setState(() {
+          _searchResults = results;
+          _isSearching = false;
+        });
+      } catch (_) {
+        if (!mounted || requestId != _searchRequestId) return;
+        setState(() {
+          _searchResults = [];
+          _isSearching = false;
+        });
+      }
+    });
   }
 
   void _selectPlace(PlaceSearchResult place) {
+    _debounceTimer?.cancel();
+    _searchRequestId++;
+
+    final position = LatLng(place.latitude, place.longitude);
+    final label = place.displayName.split(',').first.trim();
+
     setState(() {
       _searchResults = [];
-      _searchController.text = place.displayName.split(',').first;
+      _isSearching = false;
+      _selectedPosition = position;
     });
-    _moveToPosition(LatLng(place.latitude, place.longitude));
-    widget.onPlaceSelected?.call(place);
+
+    _suppressSearchListener = true;
+    _searchController.text = label;
+    _suppressSearchListener = false;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _mapController.move(position, 16);
+      widget.onPositionChanged(position);
+      widget.onPlaceSelected?.call(place);
+    });
   }
 
   Future<void> _useCurrentLocation() async {
@@ -100,6 +153,8 @@ class _MapPickerWidgetState extends State<MapPickerWidget> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
+    _searchRequestId++;
     _searchController.dispose();
     super.dispose();
   }
@@ -131,8 +186,15 @@ class _MapPickerWidgetState extends State<MapPickerWidget> {
                 : IconButton(
                     icon: const Icon(Icons.clear),
                     onPressed: () {
+                      _debounceTimer?.cancel();
+                      _searchRequestId++;
+                      _suppressSearchListener = true;
                       _searchController.clear();
-                      setState(() => _searchResults = []);
+                      _suppressSearchListener = false;
+                      setState(() {
+                        _searchResults = [];
+                        _isSearching = false;
+                      });
                     },
                   ),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -148,25 +210,25 @@ class _MapPickerWidgetState extends State<MapPickerWidget> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.grey.shade300),
             ),
-            child: ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _searchResults.length,
-              separatorBuilder: (context, index) => Divider(height: 1, color: Colors.grey.shade200),
-              itemBuilder: (context, index) {
-                final place = _searchResults[index];
-                return ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.place, color: AppColors.primaryOrange),
-                  title: Text(
-                    place.displayName.split(',').take(2).join(','),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var index = 0; index < _searchResults.length; index++) ...[
+                  if (index > 0)
+                    Divider(height: 1, color: Colors.grey.shade200),
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.place, color: AppColors.primaryOrange),
+                    title: Text(
+                      _searchResults[index].displayName.split(',').take(2).join(','),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    onTap: () => _selectPlace(_searchResults[index]),
                   ),
-                  onTap: () => _selectPlace(place),
-                );
-              },
+                ],
+              ],
             ),
           ),
         const SizedBox(height: 8),

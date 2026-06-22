@@ -102,8 +102,31 @@ async function requireAdmin(req, res, next) {
   }
 }
 
+async function optionalAuthToken(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token) {
+    next();
+    return;
+  }
+
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (!error && data.user) {
+      req.authUser = data.user;
+      req.accessToken = token;
+    }
+  } catch (_) {}
+
+  next();
+}
+
 module.exports = {
   verifyAuthToken,
+  optionalAuthToken,
   requireActiveUser,
   requireAdmin,
   syncAuthUserProfile,

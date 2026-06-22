@@ -1,43 +1,39 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../models/bhandara.dart';
+import '../models/food_share_post.dart';
 import '../models/place_search_result.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/location_service.dart';
 import '../widgets/map_widget.dart';
 
-class AddBhandaraScreen extends StatefulWidget {
-  final Bhandara? existingBhandara;
+class CreateFoodShareScreen extends StatefulWidget {
+  final FoodSharePost? existingPost;
 
-  const AddBhandaraScreen({super.key, this.existingBhandara});
+  const CreateFoodShareScreen({super.key, this.existingPost});
 
-  bool get isEditing => existingBhandara != null;
+  bool get isEditing => existingPost != null;
 
   @override
-  State<AddBhandaraScreen> createState() => _AddBhandaraScreenState();
+  State<CreateFoodShareScreen> createState() => _CreateFoodShareScreenState();
 }
 
-class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
+class _CreateFoodShareScreenState extends State<CreateFoodShareScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _bhandaraNameController = TextEditingController();
-  final _publisherNameController = TextEditingController();
+  final _contactNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _eventNameController = TextEditingController();
+  final _foodDescriptionController = TextEditingController();
+  final _quantityController = TextEditingController();
   final _streetController = TextEditingController();
   final _villageController = TextEditingController();
   final _pinCodeController = TextEditingController();
 
   final _apiService = ApiService();
   final _locationService = LocationService();
-  final _imagePicker = ImagePicker();
 
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
-  File? _invitationImage;
-  String? _existingImageUrl;
   LatLng? _mapPosition;
   bool _isSubmitting = false;
   bool _isLoadingLocation = true;
@@ -45,23 +41,24 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
   @override
   void initState() {
     super.initState();
-    final existing = widget.existingBhandara;
+    final existing = widget.existingPost;
     if (existing != null) {
-      _bhandaraNameController.text = existing.bhandaraName;
-      _publisherNameController.text = existing.publisherName;
+      _contactNameController.text = existing.contactName;
+      _phoneController.text = existing.phoneNumber;
+      _eventNameController.text = existing.eventName ?? '';
+      _foodDescriptionController.text = existing.foodDescription;
+      _quantityController.text = existing.quantity ?? '';
       _streetController.text = existing.street;
       _villageController.text = existing.village;
       _pinCodeController.text = existing.pinCode;
-      _selectedDate = existing.date;
-      _existingImageUrl = existing.imageUrl;
       _mapPosition = LatLng(existing.latitude, existing.longitude);
       _isLoadingLocation = false;
     } else {
-      _initMapLocation();
       final displayName = AuthService.instance.displayName;
       if (displayName != null && displayName.isNotEmpty) {
-        _publisherNameController.text = displayName;
+        _contactNameController.text = displayName;
       }
+      _initMapLocation();
     }
   }
 
@@ -91,53 +88,11 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
     }
   }
 
-  Future<void> _pickImage() async {
-    final picked = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1920,
-      imageQuality: 85,
-    );
-    if (picked != null) {
-      setState(() {
-        _invitationImage = File(picked.path);
-        _existingImageUrl = null;
-      });
-    }
-  }
-
-  Future<void> _pickDate() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-    if (date == null) return;
-
-    if (!mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_selectedDate),
-    );
-
-    if (time != null) {
-      setState(() {
-        _selectedDate = DateTime(
-          date.year,
-          date.month,
-          date.day,
-          time.hour,
-          time.minute,
-        );
-      });
-    }
-  }
-
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_mapPosition == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select location on map')),
+        const SnackBar(content: Text('Please select pickup location on map')),
       );
       return;
     }
@@ -146,29 +101,31 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
 
     try {
       if (widget.isEditing) {
-        await _apiService.updateBhandara(
-          id: widget.existingBhandara!.id,
-          bhandaraName: _bhandaraNameController.text.trim(),
-          publisherName: _publisherNameController.text.trim(),
+        await _apiService.updateFoodSharePost(
+          id: widget.existingPost!.id,
+          contactName: _contactNameController.text.trim(),
+          phoneNumber: _phoneController.text.trim(),
+          eventName: _eventNameController.text.trim(),
+          foodDescription: _foodDescriptionController.text.trim(),
+          quantity: _quantityController.text.trim(),
           street: _streetController.text.trim(),
           village: _villageController.text.trim(),
           pinCode: _pinCodeController.text.trim(),
-          date: _selectedDate,
           latitude: _mapPosition!.latitude,
           longitude: _mapPosition!.longitude,
-          image: _invitationImage,
         );
       } else {
-        await _apiService.createBhandara(
-          bhandaraName: _bhandaraNameController.text.trim(),
-          publisherName: _publisherNameController.text.trim(),
+        await _apiService.createFoodSharePost(
+          contactName: _contactNameController.text.trim(),
+          phoneNumber: _phoneController.text.trim(),
+          eventName: _eventNameController.text.trim(),
+          foodDescription: _foodDescriptionController.text.trim(),
+          quantity: _quantityController.text.trim(),
           street: _streetController.text.trim(),
           village: _villageController.text.trim(),
           pinCode: _pinCodeController.text.trim(),
-          date: _selectedDate,
           latitude: _mapPosition!.latitude,
           longitude: _mapPosition!.longitude,
-          image: _invitationImage,
         );
       }
 
@@ -177,8 +134,8 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
           SnackBar(
             content: Text(
               widget.isEditing
-                  ? 'Bhandara updated successfully!'
-                  : 'Bhandara added successfully!',
+                  ? 'Food share post updated!'
+                  : 'Food share post added!',
             ),
           ),
         );
@@ -197,8 +154,11 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
 
   @override
   void dispose() {
-    _bhandaraNameController.dispose();
-    _publisherNameController.dispose();
+    _contactNameController.dispose();
+    _phoneController.dispose();
+    _eventNameController.dispose();
+    _foodDescriptionController.dispose();
+    _quantityController.dispose();
     _streetController.dispose();
     _villageController.dispose();
     _pinCodeController.dispose();
@@ -207,40 +167,83 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isEditing ? 'Edit Bhandara' : 'Add Bhandara'),
+        title: Text(widget.isEditing ? 'Edit Food Post' : 'Share Leftover Food'),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 88 + bottomInset),
           children: [
-            TextFormField(
-              controller: _bhandaraNameController,
-              decoration: const InputDecoration(
-                labelText: 'Bhandara Name *',
-                hintText: 'e.g. Shri Ram Ji Ka Bhandara',
-                prefixIcon: Icon(Icons.soup_kitchen_outlined),
-                border: OutlineInputBorder(),
-              ),
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Bhandara name is required' : null,
+            Text(
+              'After an event, if food is remaining, post here so others can come and collect it.',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4),
             ),
             const SizedBox(height: 16),
             TextFormField(
-              controller: _publisherNameController,
+              controller: _contactNameController,
               decoration: const InputDecoration(
-                labelText: 'Publisher Name *',
-                hintText: 'Your name (jo add kar rahe hain)',
+                labelText: 'Your Name *',
                 prefixIcon: Icon(Icons.person_outline),
                 border: OutlineInputBorder(),
               ),
               validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Publisher name is required' : null,
+                  v == null || v.trim().isEmpty ? 'Name is required' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _phoneController,
+              decoration: const InputDecoration(
+                labelText: 'Phone Number *',
+                hintText: '10-digit mobile number',
+                prefixIcon: Icon(Icons.phone_outlined),
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.phone,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              maxLength: 10,
+              validator: (v) {
+                if (v == null || v.trim().length != 10) {
+                  return 'Enter valid 10-digit phone number';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _eventNameController,
+              decoration: const InputDecoration(
+                labelText: 'Event Name (optional)',
+                hintText: 'e.g. Wedding, Temple function',
+                prefixIcon: Icon(Icons.event_outlined),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _foodDescriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Food Available *',
+                hintText: 'e.g. Dal, roti, sabzi, sweets',
+                prefixIcon: Icon(Icons.restaurant_outlined),
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Describe the food available' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _quantityController,
+              decoration: const InputDecoration(
+                labelText: 'Quantity (optional)',
+                hintText: 'e.g. 20 plates, 5 kg',
+                prefixIcon: Icon(Icons.scale_outlined),
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -262,7 +265,7 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
                 border: OutlineInputBorder(),
               ),
               validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Village is required' : null,
+                  v == null || v.trim().isEmpty ? 'City is required' : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -273,61 +276,14 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
                 border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              maxLength: 6,
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Pin code is required';
-                if (v.trim().length != 6) return 'Enter valid 6-digit pin code';
+                if (v == null || v.trim().length != 6) {
+                  return 'Enter valid 6-digit pin code';
+                }
                 return null;
               },
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.calendar_today),
-              title: const Text('Date & Time *'),
-              subtitle: Text(dateFormat.format(_selectedDate)),
-              trailing: const Icon(Icons.edit),
-              onTap: _pickDate,
-            ),
-            const Divider(),
-            const SizedBox(height: 8),
-            const Text(
-              'Invitation Image',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: _pickImage,
-              child: Container(
-                height: 160,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade400),
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.grey.shade100,
-                ),
-                child: _invitationImage != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.file(_invitationImage!, fit: BoxFit.cover),
-                      )
-                    : _existingImageUrl != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(_existingImageUrl!, fit: BoxFit.cover),
-                          )
-                        : Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_photo_alternate,
-                                  size: 48, color: Colors.grey.shade500),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Tap to upload invitation image',
-                                style: TextStyle(color: Colors.grey.shade600),
-                              ),
-                            ],
-                          ),
-              ),
             ),
             const SizedBox(height: 20),
             if (_isLoadingLocation)
@@ -364,7 +320,7 @@ class _AddBhandaraScreenState extends State<AddBhandaraScreen> {
                       ),
                     )
                   : Text(
-                      widget.isEditing ? 'Save Changes' : 'Save Bhandara',
+                      widget.isEditing ? 'Save Changes' : 'Post Food',
                       style: const TextStyle(fontSize: 16),
                     ),
             ),

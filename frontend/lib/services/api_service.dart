@@ -9,6 +9,7 @@ import '../models/admin_user_reports.dart';
 import '../models/app_notification.dart';
 import '../models/bhandara.dart';
 import '../models/bhandara_report.dart';
+import '../models/food_share_post.dart';
 import '../services/auth_service.dart';
 import '../services/device_id_service.dart';
 
@@ -199,10 +200,12 @@ class ApiService {
 
   Future<List<AppNotification>> fetchNotifications(
     String deviceId, {
+    String? userId,
     bool unreadOnly = true,
   }) async {
     final unreadParam = unreadOnly ? '&unreadOnly=true' : '';
-    final url = '${ApiConfig.notificationsUrl}?deviceId=$deviceId$unreadParam';
+    final userParam = userId != null ? '&userId=$userId' : '';
+    final url = '${ApiConfig.notificationsUrl}?deviceId=$deviceId$userParam$unreadParam';
     final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
@@ -216,8 +219,9 @@ class ApiService {
     throw Exception('Failed to load notifications (${response.statusCode})');
   }
 
-  Future<int> fetchUnreadCount(String deviceId) async {
-    final url = '${ApiConfig.notificationsUrl}/unread-count?deviceId=$deviceId';
+  Future<int> fetchUnreadCount(String deviceId, {String? userId}) async {
+    final userParam = userId != null ? '&userId=$userId' : '';
+    final url = '${ApiConfig.notificationsUrl}/unread-count?deviceId=$deviceId$userParam';
     final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
@@ -228,11 +232,18 @@ class ApiService {
     return 0;
   }
 
-  Future<void> markNotificationRead(String notificationId, String deviceId) async {
+  Future<void> markNotificationRead(
+    String notificationId,
+    String deviceId, {
+    String? userId,
+  }) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.notificationsUrl}/$notificationId/read'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'deviceId': deviceId}),
+      body: jsonEncode({
+        'deviceId': deviceId,
+        if (userId != null) 'userId': userId,
+      }),
     );
 
     if (response.statusCode != 200) {
@@ -240,11 +251,17 @@ class ApiService {
     }
   }
 
-  Future<void> markAllNotificationsRead(String deviceId) async {
+  Future<void> markAllNotificationsRead(
+    String deviceId, {
+    String? userId,
+  }) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.notificationsUrl}/read-all'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'deviceId': deviceId}),
+      body: jsonEncode({
+        'deviceId': deviceId,
+        if (userId != null) 'userId': userId,
+      }),
     );
 
     if (response.statusCode != 200) {
@@ -360,6 +377,165 @@ class ApiService {
     }
 
     String message = 'Failed to load reports (${response.statusCode})';
+    try {
+      final error = jsonDecode(response.body) as Map<String, dynamic>;
+      message = error['message']?.toString() ?? message;
+    } catch (_) {}
+    throw Exception(message);
+  }
+
+  Future<List<FoodSharePost>> fetchFoodSharePosts({
+    double? latitude,
+    double? longitude,
+  }) async {
+    var url = ApiConfig.foodSharesUrl;
+    if (latitude != null && longitude != null) {
+      url += '?lat=$latitude&lng=$longitude';
+    }
+
+    final token = AuthService.instance.session?.accessToken;
+    final headers = token != null ? {'Authorization': 'Bearer $token'} : null;
+
+    final response = await http.get(Uri.parse(url), headers: headers);
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = body['data'] as List<dynamic>;
+      return data
+          .map((e) => FoodSharePost.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+
+    throw Exception('Failed to load food posts (${response.statusCode})');
+  }
+
+  Future<FoodSharePost> createFoodSharePost({
+    required String contactName,
+    required String phoneNumber,
+    required String eventName,
+    required String foodDescription,
+    required String quantity,
+    required String street,
+    required String village,
+    required String pinCode,
+    required double latitude,
+    required double longitude,
+  }) async {
+    final response = await http.post(
+      Uri.parse(ApiConfig.foodSharesUrl),
+      headers: _authHeaders(),
+      body: jsonEncode({
+        'contactName': contactName,
+        'phoneNumber': phoneNumber,
+        'eventName': eventName.isEmpty ? null : eventName,
+        'foodDescription': foodDescription,
+        'quantity': quantity.isEmpty ? null : quantity,
+        'street': street,
+        'village': village,
+        'pinCode': pinCode,
+        'latitude': latitude,
+        'longitude': longitude,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return FoodSharePost.fromJson(body['data'] as Map<String, dynamic>);
+    }
+
+    String message = 'Failed to create food post (${response.statusCode})';
+    try {
+      final error = jsonDecode(response.body) as Map<String, dynamic>;
+      message = error['message']?.toString() ?? message;
+    } catch (_) {}
+    throw Exception(message);
+  }
+
+  Future<FoodSharePost> updateFoodSharePost({
+    required String id,
+    required String contactName,
+    required String phoneNumber,
+    required String eventName,
+    required String foodDescription,
+    required String quantity,
+    required String street,
+    required String village,
+    required String pinCode,
+    required double latitude,
+    required double longitude,
+  }) async {
+    final response = await http.put(
+      Uri.parse(ApiConfig.foodShareUrl(id)),
+      headers: _authHeaders(),
+      body: jsonEncode({
+        'contactName': contactName,
+        'phoneNumber': phoneNumber,
+        'eventName': eventName.isEmpty ? null : eventName,
+        'foodDescription': foodDescription,
+        'quantity': quantity.isEmpty ? null : quantity,
+        'street': street,
+        'village': village,
+        'pinCode': pinCode,
+        'latitude': latitude,
+        'longitude': longitude,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return FoodSharePost.fromJson(body['data'] as Map<String, dynamic>);
+    }
+
+    String message = 'Failed to update food post (${response.statusCode})';
+    try {
+      final error = jsonDecode(response.body) as Map<String, dynamic>;
+      message = error['message']?.toString() ?? message;
+    } catch (_) {}
+    throw Exception(message);
+  }
+
+  Future<FoodSharePost> acceptFoodSharePost({
+    required String id,
+    required String contactName,
+    required String phoneNumber,
+    required DateTime pickupTime,
+    required int platesRequired,
+  }) async {
+    final response = await http.post(
+      Uri.parse(ApiConfig.foodShareAcceptUrl(id)),
+      headers: _authHeaders(),
+      body: jsonEncode({
+        'contactName': contactName,
+        'phoneNumber': phoneNumber,
+        'pickupTime': pickupTime.toIso8601String(),
+        'platesRequired': platesRequired,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return FoodSharePost.fromJson(body['data'] as Map<String, dynamic>);
+    }
+
+    String message = 'Failed to accept food post (${response.statusCode})';
+    try {
+      final error = jsonDecode(response.body) as Map<String, dynamic>;
+      message = error['message']?.toString() ?? message;
+    } catch (_) {}
+    throw Exception(message);
+  }
+
+  Future<void> deleteFoodSharePost(String id) async {
+    final response = await http.delete(
+      Uri.parse(ApiConfig.foodShareDeleteUrl(id)),
+      headers: _authHeaders(),
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    String message = 'Failed to remove post (${response.statusCode})';
     try {
       final error = jsonDecode(response.body) as Map<String, dynamic>;
       message = error['message']?.toString() ?? message;
